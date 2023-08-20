@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="chat.css">
+    <script src="//unpkg.com/showdown/dist/showdown.min.js"></script>
+    <script src="chat.js"></script>
+    <script src="//unpkg.com/alpinejs" defer></script>
+    
+    
+    <title>SignalGPT</title>
+</head>
+<body>
+    <div id="app" x-data="getAppData()" x-init="await getData();">
+    	
+        <div id="contacts" >
+        	<!--<span x-text="JSON.stringify(chats)"></span>
+        	<span x-text="JSON.stringify(window.appdata.chats)"></span>-->
+            <template x-for="chat in getDictValuesByAttribute(chats,['latest_message','timestamp'],true)" :key="chat.uid">
+            <div class="contact" x-bind:data-chatid="chat.uid" x-on:click="selectChat">
+                <img x-bind:src="chat.image || (chat.groupchat ? '/group.png' : '/user.png')" alt="Profile Image">
+                <div class="contact-info">
+                    <h4 x-text="chat.name"></h4>
+                    <p x-show="chat.latest_message">
+                    	<span x-show="chat.groupchat">
+                    		<b x-text="(chat.partners?.[chat.latest_message?.author] || 'You') + ': '"></b>
+                    	</span>
+                    	<span x-text="chat.latest_message?.content || '[Image]'"></span>
+                    </p>
+                    <p x-show="!chat.latest_message" x-text="chat.desc"></p>
+                </div>
+                <span class="time" x-text="formatTime(chat.latest_message?.timestamp) ?? ''"></span>
+            </div>
+            </template>
+        </div>
+	
+	<div id="chat_info">
+		<h2 x-text="selected_chat.name"></h2>
+		<p x-show="selected_chat.groupchat"><b>Members: </b>
+			You, <span x-text="Object.values(selected_chat?.partners || {}).join(', ')"></span>
+		</p>
+		<p x-show="!selected_chat.groupchat" x-text="selected_chat.desc"></p>
+	</div>
+	
+        <div id="chat" >
+            
+            <template x-for="message in selected_chat.messages"><div>
+            <span class="dateindicator" x-show="newDay(message.timestamp)" x-text="formatDate(message.timestamp)"></span>
+            <div :class="message.own ? 'message sent' : 'message received'">
+                <img class="profilepic" x-show="!message.own" x-bind:src="contacts[message.author]?.image || '/user.png'" alt="Profile Image">
+                <div class="message-content">
+                    <img class="attached_pic" x-show="message.image_attached" x-bind:src="message.image_attached"></img>
+                    <h5 x-show="!message.own && !message.image_attached" x-text="selected_chat.partners?.[message?.author]"></h5>
+                    <p x-html="mkdw.makeHtml(message.content)"></p>
+                    <span class="time" x-text="formatTime(message.timestamp)"></span>
+                </div>
+            </div>
+
+            </div></template>
+        </div>
+        
+        <div id="chat_input">
+        	<input x-on:keydown="sendIfEnter(event)" placeholder="Message"></input>
+        </div>
+    </div>
+
+</body>
+</html>
+
