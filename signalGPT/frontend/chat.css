@@ -9,6 +9,7 @@
     --msgsent_text: #fdf6e3;
     --msgreceived: blue;
     --msgreceived_text: #fdf6e3;
+		--button: blue;
 }
 
 body, html {
@@ -26,18 +27,21 @@ body, html {
     //flex-wrap: wrap;
     display: grid;
     grid-template-columns: 30% 70%;
-    grid-template-rows: 150px auto 60px;
+    grid-template-rows: 150px auto 90px;
     grid-template-areas:
       "chatlist chatinfo"
       "chatlist chat"
-      "chatlist newmessage";
-    height: 97vh;
+      "newcontact newmessage";
+    height: 100vh;
+}
+
+#contacts, #chat, #chat_info, #chat_input, #newcontact {
+	border: 2px solid var(--secondary);
 }
 
 #contacts {
     grid-area: chatlist;
     //width: 30%;
-    border-right: 2px solid var(--secondary);
     padding: 20px;
     overflow-y: auto;
     //height: 100%;
@@ -57,14 +61,20 @@ body, html {
 	grid-area: chatinfo;
 	//height: 5%;
 	//width: 70%;
-	border-bottom: 2px solid var(--secondary);
 	top:0;
 	background-color: var(--background);
 }
 
 #chat_input {
 	grid-area: newmessage;
-	border-top: 2px solid var(--secondary);
+}
+
+h2.chatname {
+	margin-bottom:0px;
+}
+span.handle {
+	font-size: 70%;
+	opacity: 0.7;
 }
 
 .contact {
@@ -150,7 +160,8 @@ body, html {
 .message-content {
     padding: 10px;
     border-radius: 10px;
-    max-width: 70%;
+    max-width: 52%;
+		line-height: 125%;
 }
 .message-simple-content {
 	font-size: 300%;
@@ -204,4 +215,17 @@ input {
 }
 #mention_dropdown p:hover {
 		background-color: var(--tertiary);
+}
+
+button {
+	all: unset;
+	display:inline-block;
+	border-radius: 50%;
+	height:25px;
+	width:25px;
+	margin:20px;
+	padding:3px;
+	background-color:  var(--button);
+	color: white;
+	border:1px solid white;
 }

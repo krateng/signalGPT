@@ -51,6 +51,15 @@ function getDictValuesByAttribute(dict,attributes,reverse) {
 	return Object.values(dict).sort(sortfunc)
 }
 
+function post(url,data) {
+	return fetch(url,{
+		method:"POST",
+		headers: {
+			'Content-Type': 'application/json'
+		},
+		body:JSON.stringify(data)
+	})
+}
 
 var converter = new showdown.Converter();
 
@@ -149,22 +158,42 @@ window.appdata = {
 
 			});
 	},
-	chatInput(event) {
-		var inputfield = document.getElementById('chat_input').children[0];
-		var content = inputfield.value;
-		if (event.code == "Enter") {
+	findNewContact(searchstr) {
+		post("/api/find_contact",{
+			'searchstr':searchstr
+		})
+			.then(response=>response.json())
+			.then(result=>{
+				var char = result.character;
+				var chat = result.chat;
+				this.contacts[char.handle] = char;
+				this.chats[chat.uid] = chat;
+				console.log(result);
+			})
+	},
+	keyboardInput(event) {
+		var element = event.target;
+		if (element.id == "chat_input_field") {
+			if (event.code == "Enter") {
+				if (element.value == "") {
+					this.requestResponse();
+				}
+				else {
+					this.sendMessage(element.value);
+					element.value = "";
 
-			if (content == "") {
-				this.requestResponse();
-			}
-			else {
-				inputfield.value = "";
-				this.sendMessage(content);
-			}
+				}
 
+			}
+			this.updateCurrentInput(element.value);
 		}
+		else if (element.id == "new_contact_input") {
+			if (event.code == "Enter") {
+				this.findNewContact(element.value);
+				element.value = "";
 
-		this.updateCurrentInput(content);
+			}
+		}
 	},
 	updateCurrentInput(content) {
 		this.current_input = content;

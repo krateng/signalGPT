@@ -1,6 +1,6 @@
 from bottle import get, post, static_file, run, request
 
-from .classes import Session, Partner, Chat
+from .classes import Session, Partner, Chat, create_character
 
 
 @get("/<path>")
@@ -52,5 +52,19 @@ def api_send_message():
 		# use client timestamp? or just register now?
 		session.add(m)
 		session.commit()
+
+@post("/api/find_contact")
+def api_find_contact():
+	info = request.json
+	with Session() as session:
+		char = create_character(info['searchstr'])
+		chat = char.start_direct_chat()
+		session.add(char)
+		session.add(chat)
+		session.commit()
+		return {
+			'character':char.serialize(),
+			'chat':chat.serialize()
+		}
 
 run(port=9090)
