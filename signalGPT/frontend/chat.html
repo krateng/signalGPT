@@ -65,7 +65,12 @@
         </div>
 
         <div id="chat_input">
-        	<input x-on:keydown="sendIfEnter(event)" placeholder="Message"></input>
+        	<input id="chat_input_field" x-on:keyup="chatInput(event)" placeholder="Message"></input>
+					<div x-show="current_input.match(usermatch_regex)" id="mention_dropdown">
+						<template x-for="user in (Object.keys(selected_chat?.partners || {}))"><div>
+							<p x-show="('@' + user).includes(current_input.match(usermatch_regex)?.[0]) && !current_input.includes('@' + user)" x-text="user" x-on:click="completeMention(user)"></p>
+						</div></template>
+					</div>
         </div>
     </div>
 

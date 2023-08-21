@@ -23,11 +23,11 @@ function formatDate(timestamp) {
 	let year = date.getFullYear();
 	let month = date.getMonth() + 1;
 	let day = date.getDay() + 1;
-	
+
 	const dateStr = year + '/' + month + '/' + day
 	return dateStr;
-	
-    
+
+
 }
 
 function newDay(timestamp) {
@@ -37,7 +37,7 @@ function newDay(timestamp) {
 		return true;
 	}
 	return false;
-	
+
 }
 
 function getDictValuesByAttribute(dict,attributes,reverse) {
@@ -64,17 +64,17 @@ window.appdata = {
 	    	element.classList.remove('selected');
 	    }
 	    e.currentTarget.classList.add('selected');
-	    
+
 	    var uid = e.currentTarget.dataset['chatid'];
-	    
-	    
+
+
 	    fetch('/api/chat/' + uid)
 	    	.then(response=>response.json())
 	    	.then(result=>{
 	    		console.log(result);
 	    		this.selected_chat = result;
 	    		var chatwindow = document.getElementById('chat');
-	    		
+
 	    		this.manual_update++;
 	    		this.$nextTick(()=>{
 				chatwindow.scrollTop = chatwindow.scrollHeight;
@@ -94,13 +94,13 @@ window.appdata = {
 				this.chats = result;
 				this.manual_update++;
 			});
-	
+
 	},
 	sendMessage(content) {
-		
+
 		var chatwindow = document.getElementById('chat');
 		var atEnd = ((chatwindow.scrollTop + 2000) > chatwindow.scrollHeight);
-		
+
 		var timestamp = Math.floor(Date.now() / 1000);
 		var msg = {
 			own:true,
@@ -109,12 +109,12 @@ window.appdata = {
 		}
 		this.selected_chat.messages.push(msg);
 		this.chats[this.selected_chat.uid].latest_message = msg;
-		
+
 		if (atEnd) {
 			this.$nextTick(()=>{
 				chatwindow.scrollTop = chatwindow.scrollHeight;
 			});
-			
+
 		}
 		fetch("/api/send_message",{
 			method:"POST",
@@ -129,10 +129,10 @@ window.appdata = {
 		})
 	},
 	requestResponse() {
-		
+
 		var chatwindow = document.getElementById('chat');
 		var atEnd = ((chatwindow.scrollTop + 2000) > chatwindow.scrollHeight);
-		
+
 		fetch("/api/get_message/" + this.selected_chat.uid)
 			.then(response=>response.json())
 			.then(result=>{
@@ -143,16 +143,17 @@ window.appdata = {
 						this.$nextTick(()=>{
 							chatwindow.scrollTop = chatwindow.scrollHeight;
 						});
-						
+
 					}
 				}
-				
+
 			});
 	},
-	sendIfEnter(event) {
+	chatInput(event) {
+		var inputfield = document.getElementById('chat_input').children[0];
+		var content = inputfield.value;
 		if (event.code == "Enter") {
-			var inputfield = document.getElementById('chat_input').children[0];
-			var content = inputfield.value;
+
 			if (content == "") {
 				this.requestResponse();
 			}
@@ -160,18 +161,28 @@ window.appdata = {
 				inputfield.value = "";
 				this.sendMessage(content);
 			}
-			
+
 		}
+
+		this.updateCurrentInput(content);
+	},
+	updateCurrentInput(content) {
+		this.current_input = content;
+	},
+	completeMention(handle) {
+		var inputfield = document.getElementById('chat_input').children[0];
+		var content = inputfield.value;
+		inputfield.value = content.replace(this.usermatch_regex,'@' + handle + ' ');
+		this.updateCurrentInput(inputfield.value);
+		inputfield.focus();
 	},
 	manual_update:0,
-	mkdw: new showdown.Converter()	
+	current_input: "",
+	usermatch_regex: /@(\S*$)/g,
+	mkdw: new showdown.Converter()
 }
 
 
 function getAppData() {
 	return window.appdata;
 }
-
-
-
-

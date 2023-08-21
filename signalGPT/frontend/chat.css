@@ -3,12 +3,8 @@
     --background: #002b36;
     --primary: #839496;
     --secondary: #073642;
+		--tertiary: #0b3b4a;
     --accent:   #93a1a1;
-    --base02:  #073642;
-    --base01:  #586e75;
-    --base00:  #657b83;
-    --base2:   #eee8d5;
-    --base3:   #fdf6e3;
     --msgsent: darkgreen;
     --msgsent_text: #fdf6e3;
     --msgreceived: blue;
@@ -190,4 +186,22 @@ input {
 	padding-left:12px;
 	width: 80%;
 	color: var(--primary);
+}
+
+#mention_dropdown {
+	position: absolute;
+	bottom:100px;
+	#padding-top:5px;
+	#padding-bottom:5px;
+	#padding-left:10px;
+	#padding-right: 10px;
+	background-color: var(--secondary);
+}
+#mention_dropdown p {
+	padding:12px;
+	margin:0px;
+	cursor:pointer;
+}
+#mention_dropdown p:hover {
+		background-color: var(--tertiary);
 }
