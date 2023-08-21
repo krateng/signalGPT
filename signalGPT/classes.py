@@ -81,8 +81,12 @@ class Partner(Base):
 
 
 	def start_direct_chat(self):
+		if self.direct_chat:
+			return self.direct_chat
+			
 		direct_chat = DirectChat()
 		direct_chat.partner = self
+		return direct_chat
 
 	def serialize(self):
 		return {
@@ -418,76 +422,5 @@ engine = create_engine('sqlite:///database.db')
 Base.metadata.create_all(engine)
 Session = sessionmaker(bind=engine)
 
-with Session() as session:
-	for f in os.listdir("contacts"):
-		if f.endswith(".yml"):
-			with open(os.path.join("contacts",f),"r") as fd:
-				data = yaml.load(fd,Loader=yaml.SafeLoader)
-
-		elif f.endswith(".json"):
-			with open(os.path.join("contacts",f),"r") as fd:
-				data = json.load(fd)
-		else:
-			continue
-
-		data['user_defined'] = True
-		data['friend'] = True
-
-		if data.get('image') and data['image'].startswith("./"):
-			data['image'] = "/media/" + data['image'].split("./",1)[1]
-
-		# identity on id?
-		#uid = data.get('uid')
-		#if uid:
-		#	select = session.query(Partner).where(Partner.uid == uid)
-		#	print(select)
-		#	p = session.scalars(select).first()
-		#	if p is not None:
-		#		p.__init__(**data)
-		#	else:
-		#		p = Partner(**data)
-		#else:
-		#	p = Partner(**data)
-		#	data['uid'] = p.uid
-		#	with open(os.path.join("partners",f + "wat"),"w") as fd:
-		#		yaml.dump(data,fd)
-
-		select = session.query(Partner).where(Partner.handle == data['handle'])
-		p = session.scalars(select).first()
-		if p:
-			p.__init__(**data)
-			# change data
-		else:
-			p = Partner(**data)
-
-
-		session.add(p)
-
-
-	for f in os.listdir("conversations"):
-		if f.endswith(".yml"):
-			with open(os.path.join("conversations",f),"r") as fd:
-				data = yaml.load(fd,Loader=yaml.SafeLoader)
-
-		else:
-			continue
-
-		if data.get('image') and data['image'].startswith("./"):
-			data['image'] = "/media/" + data['image'].split("./",1)[1]
-
-		members = data.pop('members')
-
-		select = session.query(GroupChat).where(GroupChat.name == data['name'])
-		c = session.scalars(select).first()
-		if c:
-			c.__init__(**data)
-			# change data
-		else:
-			c = GroupChat(**data)
-
-		for handle in members:
-			c.add_person(session.query(Partner).where(Partner.handle==handle).first())
-
-		session.add(c)
-
-	session.commit()
+from .loadfiles import load_all
+load_all()
