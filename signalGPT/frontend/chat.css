@@ -156,6 +156,9 @@ body, html {
     border-radius: 10px;
     max-width: 70%;
 }
+.message-simple-content {
+	font-size: 300%;
+}
 .message-content h5 {
 	padding:0px;
 	margin:0px;
@@ -188,4 +191,3 @@ input {
 	width: 80%;
 	color: var(--primary);
 }
-

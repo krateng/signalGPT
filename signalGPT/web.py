@@ -7,15 +7,15 @@ from .classes import Session, Partner, Chat
 def index(path):
 	return static_file(path,root="./signalGPT/frontend")
 
-@get("/img/<path:path>")
-def img(path):
-	return static_file(path,root="./images")
-	
+@get("/media/<path:path>")
+def media(path):
+	return static_file(path,root="./media")
+
 @get("/api/contacts")
 def api_get_contacts():
 	with Session() as session:
 		return {
-			partner.handle: partner.serialize()	
+			partner.handle: partner.serialize()
 			for partner in session.query(Partner).all()
 		}
 
@@ -23,10 +23,10 @@ def api_get_contacts():
 def api_get_conversations():
 	with Session() as session:
 		return {
-			chat.uid: chat.serialize_short()	
+			chat.uid: chat.serialize_short()
 			for chat in session.query(Chat).all()
 		}
-		
+
 @get("/api/chat/<uid>")
 def api_get_chat(uid):
 	with Session() as session:
@@ -41,8 +41,8 @@ def api_get_message(uid):
 			session.add(msg)
 		session.commit()
 		return {'messages':[m.serialize() for m in msgs]}
-			
-		
+
+
 @post("/api/send_message")
 def api_send_message():
 	info = request.json
@@ -52,5 +52,5 @@ def api_send_message():
 		# use client timestamp? or just register now?
 		session.add(m)
 		session.commit()
-	
+
 run(port=9090)

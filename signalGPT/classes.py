@@ -6,6 +6,7 @@ import random
 import time
 from datetime import datetime, timezone
 from doreah.io import col
+import emoji
 
 
 from sqlalchemy import create_engine, Table, Column, Integer, String, Boolean, MetaData, ForeignKey, exc
@@ -25,16 +26,21 @@ def generate_uid():
 			uid += "-"
 		uid += random.choice("0123456789abcdef")
 	return uid
-    
+
 def generate_color():
 	hex = "#"
 	for i in range(6):
 		hex += random.choice("0123456789abcdef")
 	return hex
-   
+
 def bold(txt):
 	return "\033[1m" + txt + "\033[0m"
 
+def get_media_type(filename):
+	if filename:
+		ext = filename.split('.')[-1].lower()
+		if ext in ['mp4','mkv','webm','avi']: return 'video'
+		if ext in ['jpg','jpeg','png','gif','webp']: return 'image'
 
 
 Base = declarative_base()
@@ -58,26 +64,26 @@ class Partner(Base):
 	user_defined = Column(Boolean)
 	friend = Column(Boolean)
 	color = Column(String,nullable=True)
-	
+
 	chats = relationship("GroupChat",secondary=chat_to_member,back_populates="members")
 	direct_chat = relationship('DirectChat',back_populates='partner',uselist=False)
-	
+
 	def __init__(self,**data):
-	
-		
+
+
 		for k in data:
 			setattr(self,k,data[k])
 
 		self.color = self.color or generate_color()
 		#self.uid = self.uid or generate_uid()
-		
-		
-		
-	
+
+
+
+
 	def start_direct_chat(self):
 		direct_chat = DirectChat()
 		direct_chat.partner = self
-	
+
 	def serialize(self):
 		return {
 			'name':self.name,
@@ -91,15 +97,15 @@ class Partner(Base):
 		self.permanent = True
 		with open(os.path.join("partners",self.handle + ".json"),"w") as fd:
 			json.dump(self.serialize(),fd,indent=4)
-		
+
 	def start_conversation(self):
 		return Conversation(partner=self)
-		
+
 	def get_prompt(self):
 		prompt = f"You will respond as if you are {self.name}. You will NEVER acknowledge that you are in fact an AI.\nDo not break character or moralize about how one should interact with you. If you cannot respond to something, find an in-character reason."
 		prompt += self.instructions
 		return prompt
-		
+
 	def print_message(self,message):
 		print(f"{col[self.color](bold(self.name))}: {message}")
 	def print_type_indicator(self):
@@ -110,10 +116,10 @@ class Protagonist:
 	color = "blue"
 	uid = 0
 	handle = config['user']['handle']
-	
+
 	def print_message(self,message):
 		print(f"{col[self.color](bold(self.name))}: {message}")
-	
+
 
 class Message(Base):
 	__tablename__ = 'messages'
@@ -126,14 +132,14 @@ class Message(Base):
 	author = relationship('Partner',backref='messages')
 	timestamp = Column(Integer)
 	content = Column(String)
-	image_attached = Column(String)
-	
+	media_attached = Column(String)
+
 	def get_author(self):
 		if self.user:
 			return Protagonist()
 		else:
 			return self.author
-	
+
 	def print(self):
 		self.get_author().print_message(self.content)
 
@@ -143,34 +149,36 @@ class Message(Base):
 			'author':self.get_author().handle,
 			'own':self.user,
 			'content':self.content,
-			'image_attached':self.image_attached,
-			'timestamp':self.timestamp
+			'media_attached':self.media_attached,
+			'media_type':get_media_type(self.media_attached),
+			'timestamp':self.timestamp,
+			'display_simplified': self.content and (len(self.content)<6) and ("" == emoji.replace_emoji(self.content,replace=''))
 		}
-		
+
 	def display_for_textonly_model(self):
 		txt = self.content or ""
-		if self.image_attached:
-			txt += " [Image attached]"
+		if self.media_attached:
+			txt += " [Media attached]"
 		return txt
 
-	
+
 class Chat(Base):
 	__tablename__ = 'chats'
-	
+
 	uid = Column(Integer,primary_key=True)
 	subtype = Column(String)
-	
+
 	__mapper_args__ = {'polymorphic_on': subtype}
-	
-	
-	
+
+
+
 	style_prompt = "Write as if you are using a messaging / chat app. Depending on your personality, this can mean incomplete sentences, spelling mistakes, improper grammar, abbreviations, ellipses, and use of emojis. It also means casual and informal language. Remember, you are a person, not just an assistant. No need to always be positive and agreeable. Speak your mind, have realistic interactions."
-	
+
 	userinfo_prompt = "About me: {desc}. This is simply something you know about me, no need to explicitly mention it."
-	
-	
-	
-	def add_message(self,author,content,timestamp=None,image_attached=None):
+
+
+
+	def add_message(self,author,content,timestamp=None,media_attached=None):
 		m = Message()
 		m.chat = self
 		if author is Protagonist:
@@ -179,20 +187,20 @@ class Chat(Base):
 			m.author = author
 		m.content = content
 		m.timestamp = timestamp or int(datetime.utcnow().replace(tzinfo=timezone.utc).timestamp())
-		m.image_attached = image_attached
+		m.media_attached = media_attached
 		return m
 
-	
+
 	def send_message(self,content):
 		return self.add_message(Protagonist,content)
-		
+
 	def print(self):
 		for msg in self.messages:
 			msg.print()
-			
+
 	def cmd_chat(self,session):
 		self.print()
-		
+
 		while True:
 			i = input(f"{col[Protagonist.color](Protagonist.name)}: ")
 			if i:
@@ -205,23 +213,23 @@ class Chat(Base):
 					session.add(m)
 					m.author.print_message(m.content)
 					time.sleep(0.5)
-					
+
 			session.commit()
-		
+
 
 class DirectChat(Chat):
 	__tablename__ = 'directchats'
 	uid = Column(Integer,ForeignKey('chats.uid'),primary_key=True)
-	
+
 	partner_handle = Column(String,ForeignKey('people.handle'))
 	partner = relationship('Partner',back_populates='direct_chat',uselist=False)
-	
+
 	__mapper_args__ = {'polymorphic_identity': 'direct'}
-	
-	
-	
+
+
+
 	def serialize(self):
-		
+
 		return {
 			**self.serialize_short(),
 			'messages':[msg.serialize() for msg in self.messages]
@@ -236,7 +244,7 @@ class DirectChat(Chat):
 			'image':self.partner.image,
 			'latest_message':self.messages[-1].serialize() if self.messages else None
 		}
-	
+
 	def get_openai_msg_list(self):
 		return [
 			{
@@ -258,9 +266,9 @@ class DirectChat(Chat):
 			}
 			for msg in self.messages
 		]
-	
-	
-		
+
+
+
 	def get_response(self):
 		self.partner.print_type_indicator()
 		completion = openai.ChatCompletion.create(model=config['model'],messages=self.get_openai_msg_list())
@@ -277,30 +285,30 @@ class DirectChat(Chat):
 class GroupChat(Chat):
 	__tablename__ = 'groupchats'
 	uid = Column(Integer,ForeignKey('chats.uid'),primary_key=True)
-	
+
 	name = Column(String,default="New Group")
 	desc = Column(String,default="")
 	image = Column(String)
-	
+
 	members = relationship("Partner",secondary=chat_to_member,back_populates="chats")
-	
-	
+
+
 	__mapper_args__ = {'polymorphic_identity': 'group'}
-	
-	
+
+
 	style_prompt_multiple = "The messages you receive will contain the speaker at the start. Please factor this in to write your response, but do not prefix your own response with your name. Don't ever respond for someone else, even if they are being specifically addressed. You do not need to address every single point from every message, just keep a natural conversation flow."
 	style_reminder_prompt = "Make sure you answer as {character_name}, not as another character in the chat!!!"
 
-	
+
 
 
 	def __init__(self,**data):
 		for k in data:
 			setattr(self,k,data[k])
-	
-	
-		
-		
+
+
+
+
 	def serialize(self):
 		return  {
 			**self.serialize_short(),
@@ -316,9 +324,9 @@ class GroupChat(Chat):
 			'partners':{p.handle:p.name for p in self.members},
 			'latest_message':self.messages[-1].serialize() if self.messages else None
 		}
-					
-		
-		
+
+
+
 	def get_openai_msg_list(self,partner):
 		return [
 			{
@@ -345,8 +353,8 @@ class GroupChat(Chat):
 				'content': self.style_reminder_prompt.format(character_name=partner.name)
 			}
 		] if len(self.members) > 1 else [])
-	
-	
+
+
 	def pick_next_responder(self):
 		chances = {p:1 for p in self.members}
 		mentioned = set()
@@ -358,43 +366,43 @@ class GroupChat(Chat):
 				elif p is msg.author:
 					# person responded after mention
 					mentioned.discard(p)
-			
-			
+
+
 		for index,msg in enumerate(reversed(self.messages[-7:])):
 			# last responder never responds, going further back the penalty is reduced
 			if msg.author:
 				chances[msg.author] *= (index / 10)
 		for p in mentioned:
 			chances[p] += 5
-		
+
 		responder = random.choices(list(chances.keys()),weights=chances.values(),k=1)[0]
 		return responder
-		
+
 	def get_response(self):
 		responder = self.pick_next_responder()
-		
-		
+
+
 		#responder.print_type_indicator()
-		
+
 		completion = openai.ChatCompletion.create(model=config['model'],messages=self.get_openai_msg_list(responder))
 		msg = completion['choices'][0]['message']
 		unwanted_prefix = f"{responder.name}: "
 		if msg['content'].startswith(unwanted_prefix):
 			msg['content'] = msg['content'][len(unwanted_prefix):]
-		
+
 		content = msg['content']
-		
+
 		for content in [contentpart for contentpart in content.split("\n") if contentpart]:
 			m = self.add_message(responder,content)
 			yield m
-			
-			
+
+
 	def add_person(self,person):
 		self.members.append(person)
-		
-	
-			
-		
+
+
+
+
 
 
 
@@ -408,32 +416,32 @@ engine = create_engine('sqlite:///database.db')
 # ONLY TESTING
 #Base.metadata.drop_all(engine)
 Base.metadata.create_all(engine)
-Session = sessionmaker(bind=engine)	
+Session = sessionmaker(bind=engine)
 
 with Session() as session:
 	for f in os.listdir("contacts"):
 		if f.endswith(".yml"):
 			with open(os.path.join("contacts",f),"r") as fd:
 				data = yaml.load(fd,Loader=yaml.SafeLoader)
-				
+
 		elif f.endswith(".json"):
 			with open(os.path.join("contacts",f),"r") as fd:
 				data = json.load(fd)
 		else:
-			continue		
-		
+			continue
+
 		data['user_defined'] = True
 		data['friend'] = True
-		
+
 		if data.get('image') and data['image'].startswith("./"):
-			data['image'] = "/img/" + data['image'].split("./",1)[1]
-		
+			data['image'] = "/media/" + data['image'].split("./",1)[1]
+
 		# identity on id?
-		#uid = data.get('uid')	
+		#uid = data.get('uid')
 		#if uid:
 		#	select = session.query(Partner).where(Partner.uid == uid)
 		#	print(select)
-		#	p = session.scalars(select).first() 
+		#	p = session.scalars(select).first()
 		#	if p is not None:
 		#		p.__init__(**data)
 		#	else:
@@ -443,7 +451,7 @@ with Session() as session:
 		#	data['uid'] = p.uid
 		#	with open(os.path.join("partners",f + "wat"),"w") as fd:
 		#		yaml.dump(data,fd)
-		
+
 		select = session.query(Partner).where(Partner.handle == data['handle'])
 		p = session.scalars(select).first()
 		if p:
@@ -451,24 +459,24 @@ with Session() as session:
 			# change data
 		else:
 			p = Partner(**data)
-		
-		
+
+
 		session.add(p)
-		
-		
+
+
 	for f in os.listdir("conversations"):
 		if f.endswith(".yml"):
 			with open(os.path.join("conversations",f),"r") as fd:
 				data = yaml.load(fd,Loader=yaml.SafeLoader)
-				
+
 		else:
 			continue
-			
+
 		if data.get('image') and data['image'].startswith("./"):
-			data['image'] = "/img/" + data['image'].split("./",1)[1]
-			
+			data['image'] = "/media/" + data['image'].split("./",1)[1]
+
 		members = data.pop('members')
-			
+
 		select = session.query(GroupChat).where(GroupChat.name == data['name'])
 		c = session.scalars(select).first()
 		if c:
@@ -476,10 +484,10 @@ with Session() as session:
 			# change data
 		else:
 			c = GroupChat(**data)
-		
+
 		for handle in members:
 			c.add_person(session.query(Partner).where(Partner.handle==handle).first())
-		
+
 		session.add(c)
-		
+
 	session.commit()
