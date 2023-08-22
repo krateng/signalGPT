@@ -1,11 +1,13 @@
 from bottle import get, post, static_file, run, request
+from importlib import resources
 
 from .classes import Session, Partner, Chat, create_character
 
 
 @get("/<path>")
 def index(path):
-	return static_file(path,root="./signalGPT/frontend")
+	with resources.files('signalGPT') / 'frontend' as staticfolder:
+		return static_file(path,root=staticfolder)
 
 @get("/media/<path:path>")
 def media(path):
