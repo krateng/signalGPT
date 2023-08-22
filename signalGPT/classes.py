@@ -83,7 +83,7 @@ class Partner(Base):
 	def start_direct_chat(self):
 		if self.direct_chat:
 			return self.direct_chat
-			
+
 		direct_chat = DirectChat()
 		direct_chat.partner = self
 		return direct_chat
@@ -135,7 +135,7 @@ class Message(Base):
 	author_handle = Column(String,ForeignKey('people.handle'))
 	author = relationship('Partner',backref='messages')
 	timestamp = Column(Integer)
-	content = Column(String)
+	content = Column(String,default="")
 	media_attached = Column(String)
 
 	def get_author(self):
@@ -152,7 +152,7 @@ class Message(Base):
 		return {
 			'author':self.get_author().handle,
 			'own':self.user,
-			'content':self.content,
+			'content':self.content or "",
 			'media_attached':self.media_attached,
 			'media_type':get_media_type(self.media_attached),
 			'timestamp':self.timestamp,
@@ -360,7 +360,7 @@ class GroupChat(Chat):
 
 
 	def pick_next_responder(self):
-		chances = {p:1 for p in self.members}
+		chances = {p:100 for p in self.members}
 		mentioned = set()
 		for msg in self.messages[-7:]:
 			for p in self.members:
@@ -377,7 +377,7 @@ class GroupChat(Chat):
 			if msg.author:
 				chances[msg.author] *= (index / 10)
 		for p in mentioned:
-			chances[p] += 5
+			chances[p] += (200 * len(chances))
 
 		responder = random.choices(list(chances.keys()),weights=chances.values(),k=1)[0]
 		return responder

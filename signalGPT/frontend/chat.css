@@ -76,6 +76,9 @@ span.handle {
 	font-size: 70%;
 	opacity: 0.7;
 }
+span.mention {
+	color:lightblue;
+}
 
 .contact {
     display: flex;

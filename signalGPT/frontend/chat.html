@@ -31,7 +31,7 @@
                     </p>
                     <p x-show="!chat.latest_message" x-text="chat.desc"></p>
                 </div>
-                <span class="time" x-text="formatTime(chat.latest_message?.timestamp) ?? ''"></span>
+                <span class="time" x-text="contextualTimeDescription(chat.latest_message?.timestamp) ?? ''"></span>
             </div>
             </template>
         </div>
@@ -60,7 +60,7 @@
                     <img class="attached_pic" x-show="message.media_attached && (message.media_type == 'image')" x-bind:src="message.media_attached"></img>
 										<video class="attached_video" x-show="message.media_attached && (message.media_type == 'video')" x-bind:src="message.media_attached" autoplay muted controls></video>
                     <h5 x-show="!message.own && !message.media_attached" x-text="selected_chat.partners?.[message?.author]"></h5>
-                    <p x-html="mkdw.makeHtml(message.content)"></p>
+                    <p x-html="mkdw.makeHtml(formatMentions(message.content))"></p>
                     <span class="time" x-text="formatTime(message.timestamp)"></span>
                 </div>
 								<div x-show="message.display_simplified" class="message-simple-content">

@@ -30,6 +30,47 @@ function formatDate(timestamp) {
 
 }
 
+function contextualTimeDescription(timestamp) {
+		if (timestamp == null) {
+			return null;
+		}
+		// by chatGPT
+    const now = new Date();
+    const inputDate = new Date(timestamp*1000);
+
+    const msPerMinute = 60 * 1000;
+    const msPerHour = msPerMinute * 60;
+    const msPerDay = msPerHour * 24;
+    const msPerMonth = msPerDay * 30;  // Average month duration
+    const msPerYear = msPerDay * 365;  // Average year duration
+
+    const elapsed = now - inputDate;
+
+    const daysOfWeek = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+    const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+
+    // If it's today
+    if (now.toDateString() == inputDate.toDateString()) {
+        return formatTime(timestamp);
+    }
+    // If it was in the last few days
+    else if (elapsed < msPerDay * 5) {
+        return daysOfWeek[inputDate.getDay()];
+    }
+    // If it was at least 5 days ago but less than 8 months
+    else if (elapsed < msPerMonth * 8) {
+        return inputDate.getDate() + " " + months[inputDate.getMonth()];
+    }
+    // Older than 8 months
+    else {
+        return months[inputDate.getMonth()] + " " + inputDate.getFullYear();
+    }
+		return null;
+}
+
+
+
 function newDay(timestamp) {
 	var today = new Date(timestamp * 1000).toDateString();
 	if (this.old_day != today) {
@@ -204,6 +245,12 @@ window.appdata = {
 		inputfield.value = content.replace(this.usermatch_regex,'@' + handle + ' ');
 		this.updateCurrentInput(inputfield.value);
 		inputfield.focus();
+	},
+	formatMentions(text) {
+			for (var user in this.contacts) {
+				text = text.replaceAll('@' + user, "<span class='mention'>@" + this.contacts[user].name + "</span>");
+			}
+			return text;
 	},
 	manual_update:0,
 	current_input: "",
