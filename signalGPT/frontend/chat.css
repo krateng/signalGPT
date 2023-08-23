@@ -203,8 +203,12 @@ img.profilepic {
 	padding:0px;
 	margin:0px;
 }
-.message-content p {
+.message-content p.message_text {
 	margin-top:2px;
+}
+.message-content p {
+	margin-block-end:2px;
+	margin-block-start:2px;
 }
 
 .message_text {
