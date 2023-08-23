@@ -196,6 +196,17 @@ class Chat(Base):
 		m.media_attached = media_attached
 		return m
 
+	def get_messages_upto(self,upto):
+		if upto:
+			relevant_messages = []
+			for msg in self.messages:
+				if msg is upto:
+					break
+				else:
+					relevant_messages.append(msg)
+			return relevant_messages
+		else:
+			return self.messages
 
 	def send_message(self,content):
 		return self.add_message(Protagonist,content)
@@ -251,7 +262,9 @@ class DirectChat(Chat):
 			'latest_message':self.messages[-1].serialize() if self.messages else None
 		}
 
-	def get_openai_msg_list(self):
+	def get_openai_msg_list(self,upto=None):
+		messages = self.get_messages_upto(upto)
+
 		return [
 			{
 				'role':"system",
@@ -270,23 +283,28 @@ class DirectChat(Chat):
 				'role':"user" if (msg.user) else "assistant",
 				'content': msg.display_for_textonly_model()
 			}
-			for msg in self.messages
+			for msg in messages
 		]
 
 
 
-	def get_response(self):
+	def get_response(self,replace=None):
 		self.partner.print_type_indicator()
-		completion = openai.ChatCompletion.create(model=config['model'],messages=self.get_openai_msg_list())
+		completion = openai.ChatCompletion.create(model=config['model'],messages=self.get_openai_msg_list(upto=replace))
 		msg = completion['choices'][0]['message']
 		content = msg['content']
 
 		print("\r",end="")
-		for content in [contentpart for contentpart in content.split("\n") if contentpart]:
-			m = self.add_message(self.partner,content)
-			yield m
-			self.partner.print_message(content)
-			time.sleep(0.5)
+
+		if replace:
+			replace.content = content
+			yield replace
+		else:
+			for content in [contentpart for contentpart in content.split("\n") if contentpart]:
+				m = self.add_message(self.partner,content)
+				yield m
+				self.partner.print_message(content)
+				time.sleep(0.5)
 
 class GroupChat(Chat):
 	__tablename__ = 'groupchats'
@@ -333,7 +351,9 @@ class GroupChat(Chat):
 
 
 
-	def get_openai_msg_list(self,partner):
+	def get_openai_msg_list(self,partner,upto=None):
+		messages = self.get_messages_upto(upto)
+
 		return [
 			{
 				'role':"system",
@@ -352,7 +372,7 @@ class GroupChat(Chat):
 				'role':"user" if (msg.get_author() != partner) else "assistant",
 				'content': (msg.get_author().name + ": " + msg.display_for_textonly_model()) if ((msg.get_author() != partner) and len(self.members) > 1) else msg.display_for_textonly_model()
 			}
-			for msg in self.messages
+			for msg in messages
 		] + ([
 			{
 				'role':"system",
@@ -384,13 +404,13 @@ class GroupChat(Chat):
 		responder = random.choices(list(chances.keys()),weights=chances.values(),k=1)[0]
 		return responder
 
-	def get_response(self):
-		responder = self.pick_next_responder()
+	def get_response(self,replace=None):
+		responder = replace.author if replace else self.pick_next_responder()
 
 
 		#responder.print_type_indicator()
 
-		completion = openai.ChatCompletion.create(model=config['model'],messages=self.get_openai_msg_list(responder))
+		completion = openai.ChatCompletion.create(model=config['model'],messages=self.get_openai_msg_list(responder,upto=replace))
 		msg = completion['choices'][0]['message']
 		unwanted_prefix = f"{responder.name}: "
 		if msg['content'].startswith(unwanted_prefix):
@@ -398,9 +418,13 @@ class GroupChat(Chat):
 
 		content = msg['content']
 
-		for content in [contentpart for contentpart in content.split("\n") if contentpart]:
-			m = self.add_message(responder,content)
-			yield m
+		if replace:
+			replace.content = content
+			yield replace
+		else:
+			for content in [contentpart for contentpart in content.split("\n") if contentpart]:
+				m = self.add_message(responder,content)
+				yield m
 
 
 	def add_person(self,person):

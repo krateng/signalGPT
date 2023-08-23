@@ -258,10 +258,19 @@ window.appdata = {
 		textinput.contentEditable = true;
 		textinput.classList.add('editing');
 		textinput.focus();
-		console.log(msg_uid);
+		textinput.addEventListener('focusout',function(){
+			var textinput = event.srcElement;
+			textinput.classList.remove('editing');
+			textinput.contentEditable = false;
+			var uid = textinput.dataset.msgid;
+			post("/api/edit_message",{
+				uid:uid,
+				content:converter.makeMarkdown(textinput.innerHTML)
+			})
+		});
 	},
 	deleteMessage(msg_uid) {
-		post("api/delete_message",{
+		post("/api/delete_message",{
 				uid:msg_uid
 		})
 			.then(result=>{
@@ -276,7 +285,20 @@ window.appdata = {
 			})
 	},
 	regenerateMessage(msg_uid) {
-		console.log(msg_uid);
+		post("/api/regenerate_message",{
+			uid:msg_uid
+		})
+			.then(response=>response.json())
+			.then(result=>{
+				var i = this.selected_chat.messages.length;
+				while(i--) {
+					if (this.selected_chat.messages[i].uid == msg_uid) {
+						this.selected_chat.messages[i].content = result['content'];
+						break;
+					}
+				}
+				this.chats[this.selected_chat.uid].latest_message = this.selected_chat.messages.slice(-1)[0];
+			})
 	},
 	addFriend(handle){
 		post("/api/add_friend",{
@@ -287,7 +309,7 @@ window.appdata = {
 			})
 	},
 	deleteChat(chat_uid) {
-		post("api/delete_chat",{
+		post("/api/delete_chat",{
 				uid:chat_uid
 		})
 			.then(result=>{

@@ -54,6 +54,14 @@ def api_send_message():
 		# use client timestamp? or just register now?
 		session.add(m)
 		session.commit()
+@post("/api/regenerate_message")
+def api_regenerate_message():
+	info = request.json
+	with Session() as session:
+		msg = session.query(Message).where(Message.uid==info['uid']).first()
+		chat = msg.chat
+		msgs = list(chat.get_response(replace=msg))
+		return {'content':msgs[0].content}
 
 @post("/api/find_contact")
 def api_find_contact():
@@ -75,6 +83,14 @@ def api_add_friend():
 	with Session() as session:
 		char = session.query(Partner).where(Partner.handle==info['handle']).first()
 		char.friend = True
+		session.commit()
+
+@post("/api/edit_message")
+def api_edit_message():
+	info = request.json
+	with Session() as session:
+		msg = session.query(Message).where(Message.uid==info['uid']).first()
+		msg.content = info['content']
 		session.commit()
 
 @post("/api/delete_message")
