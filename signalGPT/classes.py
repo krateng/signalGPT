@@ -178,10 +178,16 @@ class Chat(Base):
 
 
 
-	style_prompt = "Write as if you are using a messaging / chat app. Depending on your personality, this can mean incomplete sentences, spelling mistakes, improper grammar, abbreviations, ellipses, and use of emojis. It also means casual and informal language. Remember, you are a person, not just an assistant. No need to always be positive and agreeable. Speak your mind, have realistic interactions."
+	style_prompt = "Write as if you are using a messaging / chat app. Depending on your personality, this can mean incomplete sentences, spelling mistakes, improper grammar, abbreviations, ellipses, and use of emojis. It also means casual and informal language. Remember, you are a person, not just an assistant. No need to always be positive and agreeable. Speak your mind, have realistic interactions. Avoid any formatting other than bold and cursive text."
 
 	userinfo_prompt = "About me: {desc}. This is simply something you know about me, no need to explicitly mention it."
 
+
+	def serialize(self):
+		return  {
+			**self.serialize_short(),
+			'messages':[msg.serialize() for msg in self.get_messages()]
+		}
 
 
 	def add_message(self,author,content,timestamp=None,media_attached=None):
@@ -207,6 +213,19 @@ class Chat(Base):
 			return relevant_messages
 		else:
 			return self.messages
+
+	def get_messages(self,stop_before=None):
+		msgs = sorted(self.messages,key=lambda x:x.timestamp)
+		if stop_before:
+			relevant_messages = []
+			for msg in msgs:
+				if msg is upto:
+					break
+				else:
+					relevant_messages.append(msg)
+			return relevant_messages
+		else:
+			return msgs
 
 	def send_message(self,content):
 		return self.add_message(Protagonist,content)
@@ -245,12 +264,6 @@ class DirectChat(Chat):
 
 
 
-	def serialize(self):
-
-		return {
-			**self.serialize_short(),
-			'messages':[msg.serialize() for msg in self.messages]
-		}
 	def serialize_short(self):
 		return {
 			'uid':self.uid,
@@ -259,7 +272,7 @@ class DirectChat(Chat):
 			'groupchat':False,
 			'desc':self.partner.bio,
 			'image':self.partner.image,
-			'latest_message':self.messages[-1].serialize() if self.messages else None
+			'latest_message':self.get_messages()[-1].serialize() if self.messages else None
 		}
 
 	def get_openai_msg_list(self,upto=None):
@@ -333,11 +346,7 @@ class GroupChat(Chat):
 
 
 
-	def serialize(self):
-		return  {
-			**self.serialize_short(),
-			'messages':[msg.serialize() for msg in self.messages]
-		}
+
 	def serialize_short(self):
 		return {
 			'uid':self.uid,
@@ -346,7 +355,7 @@ class GroupChat(Chat):
 			'desc':self.desc,
 			'image':self.image,
 			'partners':{p.handle:p.name for p in self.members},
-			'latest_message':self.messages[-1].serialize() if self.messages else None
+			'latest_message':self.get_messages()[-1].serialize() if self.messages else None
 		}
 
 

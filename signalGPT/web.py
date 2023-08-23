@@ -13,6 +13,12 @@ def index(path):
 def media(path):
 	return static_file(path,root="./media")
 
+@get("/api/userinfo")
+def api_get_userinfo():
+
+	from . import config
+	return config['user']
+
 @get("/api/contacts")
 def api_get_contacts():
 	with Session() as session:
@@ -54,6 +60,8 @@ def api_send_message():
 		# use client timestamp? or just register now?
 		session.add(m)
 		session.commit()
+		return m.serialize()
+
 @post("/api/regenerate_message")
 def api_regenerate_message():
 	info = request.json
@@ -61,7 +69,8 @@ def api_regenerate_message():
 		msg = session.query(Message).where(Message.uid==info['uid']).first()
 		chat = msg.chat
 		msgs = list(chat.get_response(replace=msg))
-		return {'content':msgs[0].content}
+		session.commit()
+		return msgs[0].serialize()
 
 @post("/api/find_contact")
 def api_find_contact():

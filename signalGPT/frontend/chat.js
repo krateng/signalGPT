@@ -104,7 +104,6 @@ function post(url,data) {
 
 var converter = new showdown.Converter();
 
-
 window.appdata = {
 	chats:{},
 	contacts:{},
@@ -144,6 +143,12 @@ window.appdata = {
 				this.chats = result;
 				this.manual_update++;
 			});
+		await fetch('/api/userinfo')
+			.then(response=>response.json())
+			.then(result=>{
+				this.userinfo = result;
+				this.manual_update++;
+			});
 
 	},
 	sendMessage(content) {
@@ -157,26 +162,27 @@ window.appdata = {
 			content:content,
 			timestamp:timestamp
 		}
-		this.selected_chat.messages.push(msg);
-		this.chats[this.selected_chat.uid].latest_message = msg;
 
-		if (atEnd) {
-			this.$nextTick(()=>{
-				chatwindow.scrollTop = chatwindow.scrollHeight;
-			});
 
-		}
-		fetch("/api/send_message",{
-			method:"POST",
-			headers: {
-				'Content-Type': 'application/json'
-			},
-			body:JSON.stringify({
+
+		post("/api/send_message",{
 				chat_id: this.selected_chat.uid,
 				content: content,
 				timestamp: timestamp
 			})
-		})
+				.then(response=>response.json())
+				.then(result=>{
+					msg.uid = result.uid;
+					console.log(msg);
+					this.selected_chat.messages.push(msg);
+					this.chats[this.selected_chat.uid].latest_message = msg;
+					if (atEnd) {
+						this.$nextTick(()=>{
+							chatwindow.scrollTop = chatwindow.scrollHeight;
+						});
+
+					}
+				});
 	},
 	requestResponse() {
 
@@ -258,16 +264,27 @@ window.appdata = {
 		textinput.contentEditable = true;
 		textinput.classList.add('editing');
 		textinput.focus();
-		textinput.addEventListener('focusout',function(){
-			var textinput = event.srcElement;
+	},
+	editMessageSend(msg_uid){
+		var element = document.getElementById('message_' + msg_uid);
+		var textinput = element.getElementsByClassName('message_text')[0];
+		if (textinput.classList.contains('editing')) {
 			textinput.classList.remove('editing');
 			textinput.contentEditable = false;
 			var uid = textinput.dataset.msgid;
+			for (var msg of this.selected_chat.messages) {
+				if (msg.uid == uid) {
+					msg.content = this.html_to_markdown(textinput.innerHTML);
+					break;
+				}
+			}
+			this.chats[this.selected_chat.uid].latest_message = this.selected_chat.messages.slice(-1)[0];
 			post("/api/edit_message",{
-				uid:uid,
-				content:converter.makeMarkdown(textinput.innerHTML)
+				uid:msg_uid,
+				content:this.html_to_markdown(textinput.innerHTML)
 			})
-		});
+		}
+
 	},
 	deleteMessage(msg_uid) {
 		post("/api/delete_message",{
@@ -319,10 +336,17 @@ window.appdata = {
 				}
 			})
 	},
+	userinfo:{},
 	manual_update:0,
 	current_input: "",
 	usermatch_regex: /@(\S*$)/g,
-	mkdw: new showdown.Converter()
+	html_to_markdown(html) {
+		html = DOMPurify.sanitize(html, {ALLOWED_TAGS:['b','i','strong','li','ol','p','h1','h2','h3','h4']});
+		return converter.makeMarkdown(html);
+	},
+	markdown_to_html(markdown) {
+		return converter.makeHtml(markdown);
+	}
 }
 
 

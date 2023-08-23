@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="chat.css">
     <script src="//unpkg.com/showdown/dist/showdown.min.js"></script>
+		<script src="//unpkg.com/dompurify@0.8.9/dist/purify.min.js"></script>
     <script src="chat.js"></script>
     <script src="//unpkg.com/alpinejs" defer></script>
 		<link rel="shortcut icon" href="/favicon.png" />
@@ -70,7 +71,7 @@
                     <img class="attached_pic" x-show="message.media_attached && (message.media_type == 'image')" x-bind:src="message.media_attached"></img>
 										<video class="attached_video" x-show="message.media_attached && (message.media_type == 'video')" x-bind:src="message.media_attached" autoplay muted controls></video>
                     <h5 x-show="!message.own && !message.media_attached" x-text="selected_chat.partners?.[message?.author]"></h5>
-                    <p class="message_text" x-bind:data-msgid="message.uid" x-html="mkdw.makeHtml(formatMentions(message.content))"></p>
+                    <p class="message_text" x-on:focusout="editMessageSend(message.uid)" x-bind:data-msgid="message.uid" x-html="markdown_to_html(formatMentions(message.content))"></p>
                     <span class="time" x-text="formatTime(message.timestamp)"></span>
 										<span class="admin_icons">
 											<svg x-on:click="editMessage(message.uid)" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24"><path d="M17.263 2.177a1.75 1.75 0 0 1 2.474 0l2.586 2.586a1.75 1.75 0 0 1 0 2.474L19.53 10.03l-.012.013L8.69 20.378a1.753 1.753 0 0 1-.699.409l-5.523 1.68a.748.748 0 0 1-.747-.188.748.748 0 0 1-.188-.747l1.673-5.5a1.75 1.75 0 0 1 .466-.756L14.476 4.963ZM4.708 16.361a.26.26 0 0 0-.067.108l-1.264 4.154 4.177-1.271a.253.253 0 0 0 .1-.059l10.273-9.806-2.94-2.939-10.279 9.813ZM19 8.44l2.263-2.262a.25.25 0 0 0 0-.354l-2.586-2.586a.25.25 0 0 0-.354 0L16.061 5.5Z"></path></svg>
@@ -87,6 +88,9 @@
         </div>
 
         <div id="chat_input">
+					<template for="emoji in userinfo.preferred_emojis.split('')">
+						<span x-text="emoji"></span>
+					</template>
         	<input id="chat_input_field" x-on:keyup="keyboardInput(event)" placeholder="Message"></input>
 					<div x-show="current_input.match(usermatch_regex)" id="mention_dropdown">
 						<template x-for="user in (Object.keys(selected_chat?.partners || {}))"><div>
