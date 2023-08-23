@@ -1,7 +1,7 @@
 from bottle import get, post, static_file, run, request
 from importlib import resources
 
-from .classes import Session, Partner, Chat, create_character
+from .classes import Session, Partner, Chat, Message, create_character
 
 
 @get("/<path>")
@@ -68,5 +68,32 @@ def api_find_contact():
 			'character':char.serialize(),
 			'chat':chat.serialize()
 		}
+
+@post("/api/add_friend")
+def api_add_friend():
+	info = request.json
+	with Session() as session:
+		char = session.query(Partner).where(Partner.handle==info['handle']).first()
+		char.friend = True
+		session.commit()
+
+@post("/api/delete_message")
+def api_delete_message():
+	info = request.json
+	with Session() as session:
+		msg = session.query(Message).where(Message.uid==info['uid']).first()
+		session.delete(msg)
+		session.commit()
+
+@post("/api/delete_chat")
+def api_delete_chat():
+	info = request.json
+	with Session() as session:
+		chat = session.query(Chat).where(Chat.uid==info['uid']).first()
+		for msg in chat.messages:
+			session.delete(msg)
+		session.delete(chat)
+		session.commit()
+
 
 run(port=9090)

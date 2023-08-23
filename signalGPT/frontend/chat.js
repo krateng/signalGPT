@@ -252,6 +252,51 @@ window.appdata = {
 			}
 			return text;
 	},
+	editMessage(msg_uid) {
+		var element = document.getElementById('message_' + msg_uid);
+		var textinput = element.getElementsByClassName('message_text')[0];
+		textinput.contentEditable = true;
+		textinput.classList.add('editing');
+		textinput.focus();
+		console.log(msg_uid);
+	},
+	deleteMessage(msg_uid) {
+		post("api/delete_message",{
+				uid:msg_uid
+		})
+			.then(result=>{
+				var i = this.selected_chat.messages.length;
+				while(i--) {
+					if (this.selected_chat.messages[i].uid == msg_uid) {
+						this.selected_chat.messages.splice(i,1);
+						break;
+					}
+				}
+				this.chats[this.selected_chat.uid].latest_message = this.selected_chat.messages.slice(-1)[0];
+			})
+	},
+	regenerateMessage(msg_uid) {
+		console.log(msg_uid);
+	},
+	addFriend(handle){
+		post("/api/add_friend",{
+			handle: handle
+		})
+			.then(result=>{
+				this.contacts[handle].friend = true;
+			})
+	},
+	deleteChat(chat_uid) {
+		post("api/delete_chat",{
+				uid:chat_uid
+		})
+			.then(result=>{
+				delete this.chats[chat_uid];
+				if (this.selected_chat.uid == chat_uid) {
+					this.selected_chat = {};
+				}
+			})
+	},
 	manual_update:0,
 	current_input: "",
 	usermatch_regex: /@(\S*$)/g,

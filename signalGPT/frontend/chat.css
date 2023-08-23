@@ -27,7 +27,7 @@ body, html {
     //flex-wrap: wrap;
     display: grid;
     grid-template-columns: 30% 70%;
-    grid-template-rows: 150px auto 90px;
+    grid-template-rows: 170px auto 90px;
     grid-template-areas:
       "chatlist chatinfo"
       "chatlist chat"
@@ -71,6 +71,7 @@ body, html {
 
 h2.chatname {
 	margin-bottom:0px;
+	display: inline;
 }
 span.handle {
 	font-size: 70%;
@@ -97,6 +98,16 @@ span.mention {
     border-radius: 50%;
     margin-right: 15px;
     object-fit: cover;
+}
+
+img.profilepic.group {
+	border:3px solid blue;
+}
+img.profilepic.friend {
+	border:3px solid lawngreen;
+}
+img.profilepic {
+	border:3px solid grey;
 }
 
 
@@ -137,6 +148,23 @@ span.mention {
     margin-bottom: 20px;
 }
 
+
+.message .admin_icons svg {
+	height: 12px;
+	width: 12px;
+	visibility: hidden;
+	fill: var(--accent);
+	cursor: pointer;
+
+}
+.message .admin_icons:hover svg {
+	visibility:visible;
+}
+.message .admin_icons:hover svg:hover {
+	fill: var(--primary);
+}
+
+
 .message img.profilepic {
     width: 45px;
     height: 45px;
@@ -165,7 +193,9 @@ span.mention {
     border-radius: 10px;
     max-width: 52%;
 		line-height: 125%;
+
 }
+
 .message-simple-content {
 	font-size: 300%;
 }
@@ -175,6 +205,13 @@ span.mention {
 }
 .message-content p {
 	margin-top:2px;
+}
+
+.message_text {
+	border:1px solid transparent;
+}
+.message_text.editing {
+	border: 1px solid rgba(255,255,255,0.5);
 }
 
 .message.sent .message-content {
@@ -226,9 +263,9 @@ button {
 	border-radius: 50%;
 	height:25px;
 	width:25px;
-	margin:20px;
 	padding:3px;
 	background-color:  var(--button);
 	color: white;
+	fill: white;
 	border:1px solid white;
 }

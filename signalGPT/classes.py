@@ -9,7 +9,7 @@ from doreah.io import col
 import emoji
 
 
-from sqlalchemy import create_engine, Table, Column, Integer, String, Boolean, MetaData, ForeignKey, exc
+from sqlalchemy import create_engine, Table, Column, Integer, String, Boolean, MetaData, ForeignKey, exc, func
 from sqlalchemy.orm import sessionmaker, relationship
 from sqlalchemy.ext.declarative import declarative_base
 
@@ -62,7 +62,7 @@ class Partner(Base):
 	image = Column(String)
 	instructions = Column(String)
 	user_defined = Column(Boolean)
-	friend = Column(Boolean)
+	friend = Column(Boolean,default=False)
 	color = Column(String,nullable=True)
 
 	chats = relationship("GroupChat",secondary=chat_to_member,back_populates="members")
@@ -95,7 +95,8 @@ class Partner(Base):
 			'bio':self.bio,
 			'uid':self.uid,
 			'image':self.image,
-			'instructions':self.instructions
+			'instructions':self.instructions,
+			'friend':self.friend
 		}
 	def add_contact(self):
 		self.permanent = True
@@ -150,6 +151,7 @@ class Message(Base):
 
 	def serialize(self):
 		return {
+			'uid': self.uid,
 			'author':self.get_author().handle,
 			'own':self.user,
 			'content':self.content or "",
@@ -416,6 +418,14 @@ def create_character(notes):
 	return p
 
 
+def maintenance():
+	with Session() as session:
+		for partner in session.query(Partner).all():
+			if (not partner.chats) and (not partner.direct_chat) and (not partner.friend):
+				print("Deleting",partner.name)
+				session.delete(partner)
+		session.commit()
+
 engine = create_engine('sqlite:///database.db')
 # ONLY TESTING
 #Base.metadata.drop_all(engine)
@@ -424,3 +434,6 @@ Session = sessionmaker(bind=engine)
 
 from .loadfiles import load_all
 load_all()
+
+
+maintenance()

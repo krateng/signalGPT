@@ -11,19 +11,19 @@ def load_all():
 		if f.split('.')[-1].lower() in ['yaml','yml']:
 			with open(os.path.join("./conversations",f),'r') as fd:
 				data = yaml.load(fd,Loader=yaml.SafeLoader)
-		
+
 			load_conversation(data)
-	
+
 	for f in os.listdir("./contacts"):
 		if f.split('.')[-1].lower() in ['yaml','yml']:
 			with open(os.path.join("./contacts",f),'r') as fd:
 				data = yaml.load(fd,Loader=yaml.SafeLoader)
-		
+
 			load_contact(data)
 
 
 def load_conversation(data):
-	
+
 	if "partner" in data:
 		load_direct_conversation(data)
 	elif "partners" in data:
@@ -31,11 +31,12 @@ def load_conversation(data):
 	else:
 		print("Could not load conversation.")
 
-def load_direct_conversation(data):	
+def load_direct_conversation(data):
 	with Session() as session:
 		p = session.query(Partner).where(Partner.handle==data['partner']).first()
 		chat = p.start_direct_chat()
-		
+		session.add(chat)
+
 		for msg in data['messages']:
 			if not msg.get('discard',False):
 				ts = msg.get('timestamp_modified') or msg.get('timestamp')
@@ -58,7 +59,7 @@ def load_direct_conversation(data):
 		session.commit()
 
 def load_group_conversation(data):
-	
+
 	if data.get('image') and data['image'].startswith("./"):
 		data['image'] = "/media/" + data['image'].split("./",1)[1]
 
@@ -77,15 +78,15 @@ def load_group_conversation(data):
 
 		session.add(c)
 		session.commit()
-	
+
 def load_contact(data):
-	
+
 	data['user_defined'] = True
 	data['friend'] = True
-	
+
 	if data.get('image') and data['image'].startswith("./"):
 		data['image'] = "/media/" + data['image'].split("./",1)[1]
-	
+
 	with Session() as session:
 		select = session.query(Partner).where(Partner.handle == data['handle'])
 		p = session.scalars(select).first()
