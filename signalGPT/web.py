@@ -56,11 +56,25 @@ def api_send_message():
 	info = request.json
 	with Session() as session:
 		chat = session.query(Chat).where(Chat.uid==info['chat_id']).first()
-		m = chat.send_message(info['content'])
+		m = chat.send_message(content=info['content'])
 		# use client timestamp? or just register now?
 		session.add(m)
 		session.commit()
 		return m.serialize()
+
+@post("/api/send_message_media")
+def api_send_message_message():
+	info = request.forms
+	file = request.files.get('file')
+	filedata = file.file.read()
+	fileext = file.filename.split('.')[-1].lower()
+	with Session() as session:
+		chat = session.query(Chat).where(Chat.uid==info['chat_id']).first()
+		m = chat.send_message(add_media={'extension':fileext,'rawdata':filedata})
+		session.add(m)
+		session.commit()
+		return m.serialize()
+
 
 @post("/api/regenerate_message")
 def api_regenerate_message():

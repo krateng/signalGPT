@@ -190,7 +190,7 @@ class Chat(Base):
 		}
 
 
-	def add_message(self,author,content,timestamp=None,media_attached=None):
+	def add_message(self,author,content="",timestamp=None,media_attached=None):
 		m = Message()
 		m.chat = self
 		if author is Protagonist:
@@ -227,8 +227,15 @@ class Chat(Base):
 		else:
 			return msgs
 
-	def send_message(self,content):
-		return self.add_message(Protagonist,content)
+	def send_message(self,content=None,add_media=None):
+		if add_media:
+			name = generate_uid() + '.' + add_media['extension']
+			path = os.path.join('media',name)
+			with open(path,'wb') as fd:
+				fd.write(add_media['rawdata'])
+			return self.add_message(Protagonist,media_attached=path)
+		else:
+			return self.add_message(Protagonist,content)
 
 	def print(self):
 		for msg in self.messages:
@@ -240,7 +247,7 @@ class Chat(Base):
 		while True:
 			i = input(f"{col[Protagonist.color](Protagonist.name)}: ")
 			if i:
-				m = self.send_message(i)
+				m = self.send_message(content=i)
 				session.add(m)
 			else:
 				print('\033[5C\033[2A')
@@ -313,7 +320,7 @@ class DirectChat(Chat):
 			replace.content = content
 			yield replace
 		else:
-			for content in [contentpart for contentpart in content.split("\n") if contentpart]:
+			for content in [contentpart for contentpart in content.split("\n\n") if contentpart]:
 				m = self.add_message(self.partner,content)
 				yield m
 				self.partner.print_message(content)
@@ -431,18 +438,13 @@ class GroupChat(Chat):
 			replace.content = content
 			yield replace
 		else:
-			for content in [contentpart for contentpart in content.split("\n") if contentpart]:
+			for content in [contentpart for contentpart in content.split("\n\n") if contentpart]:
 				m = self.add_message(responder,content)
 				yield m
 
 
 	def add_person(self,person):
 		self.members.append(person)
-
-
-
-
-
 
 
 def create_character(notes):

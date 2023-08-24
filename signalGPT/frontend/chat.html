@@ -61,7 +61,10 @@
 		</button>
 	</div>
 
-        <div id="chat" >
+        <div id="chat"
+					ondragover="event.preventDefault();this.style.backgroundColor='black';"
+					ondragleave="event.preventDefault();this.style.backgroundColor='';"
+					x-on:drop="uploadFile(event);">
 
             <template x-for="[previous,message] in selected_chat?.messages?.map(arrayValueAndPrev)"><div>
             <span class="dateindicator" x-show="!sameDay(message.timestamp,previous?.timestamp)" x-text="formatDate(message.timestamp)"></span>

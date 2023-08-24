@@ -104,6 +104,10 @@ function post(url,data) {
 	})
 }
 
+
+
+
+
 var converter = new showdown.Converter();
 
 window.appdata = {
@@ -185,6 +189,35 @@ window.appdata = {
 
 					}
 				});
+	},
+	uploadFile(event) {
+		event.preventDefault();
+
+		var chatwindow = document.getElementById('chat');
+		chatwindow.style.backgroundColor='';
+		var atEnd = ((chatwindow.scrollTop + 2000) > chatwindow.scrollHeight);
+
+		const file = event.dataTransfer.files[0];
+		const formData = new FormData();
+		formData.append('file', file);
+		formData.append('chat_id',this.selected_chat.uid);
+		fetch('/api/send_message_media', {
+	      method: 'POST',
+	      body: formData,
+	    })
+	    .then((response) => response.json())
+	    .then((data) => {
+				this.selected_chat.messages.push(data);
+				this.chats[this.selected_chat.uid].latest_message = this.selected_chat.messages.slice(-1)[0];
+
+				if (atEnd) {
+					this.$nextTick(()=>{
+						chatwindow.scrollTop = chatwindow.scrollHeight;
+					});
+
+				}
+
+	    })
 	},
 	requestResponse() {
 
