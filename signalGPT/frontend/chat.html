@@ -39,7 +39,7 @@
 
 				<div id="newcontact">
 					<input id="new_contact_input" x-on:keyup="keyboardInput(event)" placeholder="Find new contacts! Describe what you're looking for..."></input>
-					<button></button>
+					<button x-show="false"></button>
 				</div>
 
 	<div id="chat_info">
@@ -63,8 +63,8 @@
 
         <div id="chat" >
 
-            <template x-for="message in selected_chat.messages"><div>
-            <span class="dateindicator" x-show="newDay(message.timestamp)" x-text="formatDate(message.timestamp)"></span>
+            <template x-for="[previous,message] in selected_chat?.messages?.map(arrayValueAndPrev)"><div>
+            <span class="dateindicator" x-show="!sameDay(message.timestamp,previous?.timestamp)" x-text="formatDate(message.timestamp)"></span>
             <div :id="'message_' + message.uid" :class="message.own ? 'message sent' : 'message received'">
                 <img class="profilepic" x-bind:class="contacts[message.author]?.friend ? 'friend' : ''" x-show="!message.own" x-bind:src="contacts[message.author]?.image || '/user.png'" alt="Profile Image">
                 <div x-show="!message.display_simplified" class="message-content">

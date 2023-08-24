@@ -70,15 +70,17 @@ function contextualTimeDescription(timestamp) {
 }
 
 
-
-function newDay(timestamp) {
-	var today = new Date(timestamp * 1000).toDateString();
-	if (this.old_day != today) {
-		this.old_day = today;
-		return true;
+function sameDay(a,b) {
+	if ((a == undefined) || (b == undefined)) {
+		return false;
 	}
-	return false;
+	var a_str = new Date(a * 1000).toDateString();
+	var b_str = new Date(b * 1000).toDateString();
+	return (a_str == b_str);
+}
 
+function arrayValueAndPrev(element,index,array) {
+	return [array[index-1],element]
 }
 
 function getDictValuesByAttribute(dict,attributes,reverse) {
@@ -246,7 +248,7 @@ window.appdata = {
 		this.current_input = content;
 	},
 	completeMention(handle) {
-		var inputfield = document.getElementById('chat_input').children[0];
+		var inputfield = document.getElementById('chat_input_field');
 		var content = inputfield.value;
 		inputfield.value = content.replace(this.usermatch_regex,'@' + handle + ' ');
 		this.updateCurrentInput(inputfield.value);
