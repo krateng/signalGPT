@@ -91,10 +91,18 @@ def load_contact(data):
 		select = session.query(Partner).where(Partner.handle == data['handle'])
 		p = session.scalars(select).first()
 		if p:
-			p.__init__(**data)
+
+			if data.get('dismiss',False):
+				if p.direct_chat:
+					session.delete(p.direct_chat)
+				session.delete(p)
+			else:
+				p.__init__(**data)
 			# change data
 		else:
-			p = Partner(**data)
+			if not data.get('dismiss',False):
+				p = Partner(**data)
+				session.add(p)
 
-		session.add(p)
+
 		session.commit()

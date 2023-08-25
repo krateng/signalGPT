@@ -10,6 +10,7 @@
     --msgreceived: blue;
     --msgreceived_text: #fdf6e3;
 		--button: blue;
+		--button-active: cyan;
 }
 
 body, html {
@@ -36,7 +37,7 @@ body, html {
 }
 
 #contacts, #chat, #chat_info, #chat_input, #newcontact {
-	border: 2px solid var(--secondary);
+	border: 1px solid var(--secondary);
 }
 
 #contacts {
@@ -272,4 +273,17 @@ button {
 	color: white;
 	fill: white;
 	border:1px solid white;
+	text-align: center;
+	cursor:pointer;
+}
+button:hover {
+	background-color: var(--button-active);
+}
+button svg {
+	height: 75%;
+	width:75%;
+}
+button.bigbutton {
+	height:80px;
+	width:80px;
 }
