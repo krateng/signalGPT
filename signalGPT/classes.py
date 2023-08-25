@@ -77,6 +77,9 @@ class Partner(Base):
 		self.color = self.color or generate_color()
 		#self.uid = self.uid or generate_uid()
 
+		if self.friend:
+			self.start_direct_chat()
+
 
 
 
@@ -219,7 +222,7 @@ class Chat(Base):
 		if stop_before:
 			relevant_messages = []
 			for msg in msgs:
-				if msg is upto:
+				if (msg is stop_before) or (isinstance(stop_before,int) and (msg.timestamp >= stop_before)):
 					break
 				else:
 					relevant_messages.append(msg)
@@ -258,6 +261,30 @@ class Chat(Base):
 					time.sleep(0.5)
 
 			session.commit()
+
+	def get_summary(self,partner,timestamp):
+		completion = openai.ChatCompletion.create(model=config['model'],messages=[
+			{
+				'role':'user',
+				'content':msg.get_author().name + ": " + msg.display_for_textonly_model()
+			}
+			for msg in self.get_messages(stop_before=timestamp)
+		] + [
+			{
+				'role':'user',
+				'content':f'''Please analzye the above chat and what happened during it for the character {partner.name}.
+					Summarize important implications in terms of character development or changes in relationship dynamics.
+					Do not include every single thing that happened. Do not describe all steps that lead to it, only the final outcomes.
+					Write your summary in the form of information bits for a chatbot who is supposed to act as {partner.name} and needs to be updated on their knowledge, behavious, character, relationships etc. based on this chat.
+					Do not add any meta information. Speak in second person to the chatbot {partner.name}.
+					Do not give any general chatbot instructions, only tell them what new information they need to know based on this chat.
+					Do not give advice or instructions. Simpy inform about relevant changes.
+					Do not refer to this chat or how you learned these things. Simply inform the chatbot that these things happened in the meantime.'''
+			}
+		])
+		msg = completion['choices'][0]['message']
+		content = msg['content']
+		return content
 
 
 class DirectChat(Chat):
