@@ -14,20 +14,20 @@ if new:
 		while True:
 			prompt = input("New character: ")
 			if prompt:
-				c = create_character(prompt)
+				c = Partner(from_desc=prompt)
 				chars.append(c)
 				session.add(c)
 			else:
 				break
-				
+
 		session.commit()
 		if len(chars) > 1:
 			c = GroupChat(members=chars)
 		else:
 			c = chars[0].direct_chat
-		
-		
-		c.cmd_chat(session)	
+
+
+		c.cmd_chat(session)
 else:
 	with Session() as session:
 
@@ -42,12 +42,3 @@ else:
 
 
 		gc.cmd_chat(session)
-
-
-
-
-
-
-
-
-

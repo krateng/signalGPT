@@ -104,6 +104,26 @@ function post(url,data) {
 	})
 }
 
+function patch(url,data) {
+	return fetch(url,{
+		method:"PATCH",
+		headers: {
+			'Content-Type': 'application/json'
+		},
+		body:JSON.stringify(data)
+	})
+}
+
+function del(url,data) {
+	return fetch(url,{
+		method:"DELETE",
+		headers: {
+			'Content-Type': 'application/json'
+		},
+		body:JSON.stringify(data)
+	})
+}
+
 
 
 
@@ -114,46 +134,47 @@ window.appdata = {
 	chats:{},
 	contacts:{},
 	selected_chat:{},
-	selectChat(e){
+	selectChat(uid){
 	    for (var element of document.getElementsByClassName("contact")) {
 	    	element.classList.remove('selected');
 	    }
-	    e.currentTarget.classList.add('selected');
+			document.getElementById("chat_" + uid).classList.add('selected');
 
-	    var uid = e.currentTarget.dataset['chatid'];
+			if (this.chats[uid].full_loaded) {
+				this.selected_chat = this.chats[uid];
+				var chatwindow = document.getElementById('chat');
 
+				this.$nextTick(()=>{
+					chatwindow.scrollTop = chatwindow.scrollHeight;
+				});
+			}
+			else {
+				fetch('/api/chat/' + uid)
+		    	.then(response=>response.json())
+		    	.then(result=>{
+		    		console.log(result);
+						this.chats[uid] = result;
+						this.chats[uid].full_loaded = true;
+		    		this.selectChat(uid);
+		    	});
+			}
 
-	    fetch('/api/chat/' + uid)
-	    	.then(response=>response.json())
-	    	.then(result=>{
-	    		console.log(result);
-	    		this.selected_chat = result;
-	    		var chatwindow = document.getElementById('chat');
-
-	    		this.manual_update++;
-	    		this.$nextTick(()=>{
-				chatwindow.scrollTop = chatwindow.scrollHeight;
-			});
-	    	});
 	},
 	async getData(){
 		await fetch('/api/contacts')
 			.then(response=>response.json())
 			.then(result=>{
 				this.contacts = result;
-				this.manual_update++;
 			});
 		await fetch('/api/conversations')
 			.then(response=>response.json())
 			.then(result=>{
 				this.chats = result;
-				this.manual_update++;
 			});
 		await fetch('/api/userinfo')
 			.then(response=>response.json())
 			.then(result=>{
 				this.userinfo = result;
-				this.manual_update++;
 			});
 
 	},
@@ -163,13 +184,6 @@ window.appdata = {
 		var atEnd = ((chatwindow.scrollTop + 2000) > chatwindow.scrollHeight);
 
 		var timestamp = Math.floor(Date.now() / 1000);
-		var msg = {
-			own:true,
-			content:content,
-			timestamp:timestamp
-		}
-
-
 
 		post("/api/send_message",{
 				chat_id: this.selected_chat.uid,
@@ -178,10 +192,9 @@ window.appdata = {
 			})
 				.then(response=>response.json())
 				.then(result=>{
-					msg.uid = result.uid;
-					console.log(msg);
-					this.selected_chat.messages.push(msg);
-					this.chats[this.selected_chat.uid].latest_message = msg;
+					console.log(result);
+					this.selected_chat.messages.push(result);
+					this.chats[this.selected_chat.uid].latest_message = this.selected_chat.messages.slice(-1)[0];
 					if (atEnd) {
 						this.$nextTick(()=>{
 							chatwindow.scrollTop = chatwindow.scrollHeight;
@@ -206,8 +219,8 @@ window.appdata = {
 	      body: formData,
 	    })
 	    .then((response) => response.json())
-	    .then((data) => {
-				this.selected_chat.messages.push(data);
+	    .then((result) => {
+				this.selected_chat.messages.push(result);
 				this.chats[this.selected_chat.uid].latest_message = this.selected_chat.messages.slice(-1)[0];
 
 				if (atEnd) {
@@ -241,8 +254,8 @@ window.appdata = {
 			});
 	},
 	findNewContact(searchstr) {
-		post("/api/find_contact",{
-			'searchstr':searchstr
+		post("/api/contact",{
+			desc:searchstr
 		})
 			.then(response=>response.json())
 			.then(result=>{
@@ -293,12 +306,36 @@ window.appdata = {
 			}
 			return text;
 	},
-	editMessage(msg_uid) {
-		var element = document.getElementById('message_' + msg_uid);
-		var textinput = element.getElementsByClassName('message_text')[0];
-		textinput.contentEditable = true;
-		textinput.classList.add('editing');
-		textinput.focus();
+
+
+	/// CONTACTS
+	patchContact(data) {
+		patch("/api/contact",data)
+			.then(response=>response.json())
+			.then(result=>{
+				this.contacts[data.handle] = { ...this.contacts[data.handle], ...result};
+			})
+	},
+	addFriend(handle){
+		this.patchContact({handle:handle,friend:true});
+	},
+
+	// MESSAGES
+	patchMessage(data) {
+		patch("/api/message",data)
+			.then(response=>response.json())
+			.then(result=>{
+				for (var chat of Object.values(this.chats)) {
+					var i = chat.messages?.length;
+					while(i--) {
+						if (chat.messages[i].uid == data.uid) {
+							chat.messages[i] = result;
+							if (chat.messages) { chat.latest_message = chat.messages.slice(-1)[0] }
+							break;
+						}
+					}
+				}
+			})
 	},
 	editMessageSend(msg_uid){
 		var element = document.getElementById('message_' + msg_uid);
@@ -306,34 +343,31 @@ window.appdata = {
 		if (textinput.classList.contains('editing')) {
 			textinput.classList.remove('editing');
 			textinput.contentEditable = false;
-			var uid = textinput.dataset.msgid;
-			for (var msg of this.selected_chat.messages) {
-				if (msg.uid == uid) {
-					msg.content = this.html_to_markdown(textinput.innerHTML);
-					break;
-				}
-			}
-			this.chats[this.selected_chat.uid].latest_message = this.selected_chat.messages.slice(-1)[0];
-			post("/api/edit_message",{
-				uid:msg_uid,
-				content:this.html_to_markdown(textinput.innerHTML)
-			})
+			this.patchMessage({uid:msg_uid,content:this.html_to_markdown(textinput.innerHTML)})
 		}
-
+	},
+	editMessage(msg_uid) {
+		var element = document.getElementById('message_' + msg_uid);
+		var textinput = element.getElementsByClassName('message_text')[0];
+		textinput.contentEditable = true;
+		textinput.classList.add('editing');
+		textinput.focus();
 	},
 	deleteMessage(msg_uid) {
-		post("/api/delete_message",{
+		del("/api/message",{
 				uid:msg_uid
 		})
 			.then(result=>{
-				var i = this.selected_chat.messages.length;
-				while(i--) {
-					if (this.selected_chat.messages[i].uid == msg_uid) {
-						this.selected_chat.messages.splice(i,1);
-						break;
+				for (var chat of Object.values(this.chats)) {
+					var i = chat.messages?.length;
+					while(i--) {
+						if (chat.messages[i].uid == msg_uid) {
+							chat.messages.splice(i,1);
+							break;
+						}
 					}
+					if (chat.messages) { chat.latest_message = chat.messages.slice(-1)[0] }
 				}
-				this.chats[this.selected_chat.uid].latest_message = this.selected_chat.messages.slice(-1)[0];
 			})
 	},
 	regenerateMessage(msg_uid) {
@@ -345,19 +379,12 @@ window.appdata = {
 				var i = this.selected_chat.messages.length;
 				while(i--) {
 					if (this.selected_chat.messages[i].uid == msg_uid) {
-						this.selected_chat.messages[i].content = result['content'];
+						this.selected_chat.messages[i].content = result.content;
+						this.selected_chat.messages[i].display_simplified = result.display_simplified;
 						break;
 					}
 				}
 				this.chats[this.selected_chat.uid].latest_message = this.selected_chat.messages.slice(-1)[0];
-			})
-	},
-	addFriend(handle){
-		post("/api/add_friend",{
-			handle: handle
-		})
-			.then(result=>{
-				this.contacts[handle].friend = true;
 			})
 	},
 	deleteChat(chat_uid) {

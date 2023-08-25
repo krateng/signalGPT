@@ -70,17 +70,19 @@ class Partner(Base):
 
 	def __init__(self,**data):
 
+		if "from_desc" in data:
+			results = create_character_info(data.pop('from_desc'))
+			data['name'] = results['name']
+			data['handle'] = results['handle']
+			data['bio'] = results['bio']
+			data['instructions'] = results['prompt']
 
-		for k in data:
-			setattr(self,k,data[k])
+		super().__init__(**data)
 
 		self.color = self.color or generate_color()
 		#self.uid = self.uid or generate_uid()
-
 		if self.friend:
 			self.start_direct_chat()
-
-
 
 
 	def start_direct_chat(self):
@@ -141,6 +143,11 @@ class Message(Base):
 	timestamp = Column(Integer)
 	content = Column(String,default="")
 	media_attached = Column(String)
+
+	def __init__(self,**data):
+		if 'content' in data:
+			data['content'] = data['content'].strip()
+		super().__init__(**data)
 
 	def get_author(self):
 		if self.user:
@@ -258,7 +265,7 @@ class Chat(Base):
 				for m in self.get_response():
 					session.add(m)
 					m.author.print_message(m.content)
-					time.sleep(0.5)
+					#time.sleep(0.5)
 
 			session.commit()
 
@@ -276,10 +283,11 @@ class Chat(Base):
 					Summarize important implications in terms of character development or changes in relationship dynamics.
 					Do not include every single thing that happened. Do not describe all steps that lead to it, only the final outcomes.
 					Write your summary in the form of information bits for a chatbot who is supposed to act as {partner.name} and needs to be updated on their knowledge, behavious, character, relationships etc. based on this chat.
-					Do not add any meta information. Speak in second person to the chatbot {partner.name}.
+					Do not add any meta information. Speak in second person to the chatbot {partner.name}. Speak as if you are {Protagonist.name} (first person).
 					Do not give any general chatbot instructions, only tell them what new information they need to know based on this chat.
 					Do not give advice or instructions. Simpy inform about relevant changes.
-					Do not refer to this chat or how you learned these things. Simply inform the chatbot that these things happened in the meantime.'''
+					Do not refer to this chat or how you learned these things. Simply inform the chatbot that these things happened in the meantime.
+					Be very concise. Bullet points like "Your relationship with X has become more intimate", "You visited Japan with X" or "X has invited you to a football game" are sufficent.'''
 			}
 		])
 		msg = completion['choices'][0]['message']
@@ -351,7 +359,7 @@ class DirectChat(Chat):
 				m = self.add_message(self.partner,content)
 				yield m
 				self.partner.print_message(content)
-				time.sleep(0.5)
+				#time.sleep(0.5)
 
 class GroupChat(Chat):
 	__tablename__ = 'groupchats'
@@ -369,15 +377,6 @@ class GroupChat(Chat):
 
 	style_prompt_multiple = "The messages you receive will contain the speaker at the start. Please factor this in to write your response, but do not prefix your own response with your name. Don't ever respond for someone else, even if they are being specifically addressed. You do not need to address every single point from every message, just keep a natural conversation flow."
 	style_reminder_prompt = "Make sure you answer as {character_name}, not as another character in the chat!!!"
-
-
-
-
-	def __init__(self,**data):
-		for k in data:
-			setattr(self,k,data[k])
-
-
 
 
 
@@ -474,10 +473,7 @@ class GroupChat(Chat):
 		self.members.append(person)
 
 
-def create_character(notes):
-	results =  create_character_info(notes)
-	p = Partner(name=results['name'],handle=results['handle'],bio=results['bio'],image="",instructions=results['prompt'])
-	return p
+
 
 
 def maintenance():

@@ -1,7 +1,8 @@
-from bottle import get, post, static_file, run, request
+from bottle import get, post, route, delete, static_file, run, request
+patch = lambda path: route(path,method='PATCH')
 from importlib import resources
 
-from .classes import Session, Partner, Chat, Message, create_character
+from .classes import Session, Partner, Chat, Message
 
 
 @get("/<path>")
@@ -56,7 +57,7 @@ def api_send_message():
 	info = request.json
 	with Session() as session:
 		chat = session.query(Chat).where(Chat.uid==info['chat_id']).first()
-		m = chat.send_message(content=info['content'])
+		m = chat.send_message(content=info['content'].strip())
 		# use client timestamp? or just register now?
 		session.add(m)
 		session.commit()
@@ -86,11 +87,11 @@ def api_regenerate_message():
 		session.commit()
 		return msgs[0].serialize()
 
-@post("/api/find_contact")
-def api_find_contact():
+@post("/api/contact")
+def api_post_contact():
 	info = request.json
 	with Session() as session:
-		char = create_character(info['searchstr'])
+		char = Partner(from_desc=info['desc'])
 		chat = char.start_direct_chat()
 		session.add(char)
 		session.add(chat)
@@ -100,27 +101,29 @@ def api_find_contact():
 			'chat':chat.serialize()
 		}
 
-@post("/api/add_friend")
-def api_add_friend():
+@patch("/api/contact")
+def api_patch_contact():
 	info = request.json
 	with Session() as session:
-		char = session.query(Partner).where(Partner.handle==info['handle']).first()
-		char.friend = True
+		contact = session.query(Partner).where(Partner.handle==info.pop('handle')).first()
+		contact.__init__(**info)
 		session.commit()
+		return contact.serialize()
 
-@post("/api/edit_message")
-def api_edit_message():
+@patch("/api/message")
+def api_patch_message():
 	info = request.json
 	with Session() as session:
-		msg = session.query(Message).where(Message.uid==info['uid']).first()
-		msg.content = info['content']
+		message = session.query(Message).where(Message.uid==info.pop('uid')).first()
+		message.__init__(**info)
 		session.commit()
+		return message.serialize()
 
-@post("/api/delete_message")
+@delete("/api/message")
 def api_delete_message():
 	info = request.json
 	with Session() as session:
-		msg = session.query(Message).where(Message.uid==info['uid']).first()
+		msg = session.query(Message).where(Message.uid==info.pop('uid')).first()
 		session.delete(msg)
 		session.commit()
 
