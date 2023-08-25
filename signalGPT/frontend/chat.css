@@ -88,6 +88,11 @@ body {
 	background-color: var(--background);
 }
 
+#chat_info td {
+	padding:10px;
+	vertical-align: top;
+}
+
 #chat_input {
 	grid-area: newmessage;
 }
@@ -118,9 +123,7 @@ span.mention {
 .contact img {
     width: 80px;
     height: 80px;
-    border-radius: 50%;
     margin-right: 15px;
-    object-fit: cover;
 }
 
 img.profilepic.group {
@@ -130,7 +133,12 @@ img.profilepic.friend {
 	border:3px solid lawngreen;
 }
 img.profilepic {
-	border:3px solid grey;
+	border:3px solid gray;
+}
+
+#chat_info img.profilepic {
+	width: 100px;
+	height: 100px;
 }
 
 
@@ -154,8 +162,9 @@ img.profilepic {
 }
 
 .time {
-    font-size: 0.8em;
-    color: var(--accent);
+    font-size: 11px;
+    #color: var(--accent);
+		color: gray;
 }
 
 
@@ -168,13 +177,17 @@ img.profilepic {
 
 .message {
     display: flex;
+		align-items: flex-end;
     margin-bottom: 20px;
 }
 
+.message .admin_icons {
+	margin-left:8px;
+}
 
 .message .admin_icons svg {
-	height: 12px;
-	width: 12px;
+	height: 11px;
+	width: 11px;
 	visibility: hidden;
 	fill: var(--accent);
 	cursor: pointer;
@@ -187,12 +200,14 @@ img.profilepic {
 	fill: var(--primary);
 }
 
+img.profilepic {
+	border-radius: 50%;
+	object-fit: cover;
+}
 
 .message img.profilepic {
     width: 45px;
     height: 45px;
-    border-radius: 50%;
-    object-fit: cover;
 }
 
 .message.received {
@@ -288,8 +303,8 @@ button {
 	all: unset;
 	display:inline-block;
 	border-radius: 50%;
-	height:25px;
-	width:25px;
+	height:20px;
+	width:20px;
 	padding:3px;
 	background-color:  var(--button);
 	color: white;
