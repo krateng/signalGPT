@@ -484,7 +484,7 @@ def maintenance():
 				session.delete(partner)
 		session.commit()
 
-engine = create_engine('sqlite:///database.db')
+engine = create_engine('sqlite:///database.sqlite')
 # ONLY TESTING
 #Base.metadata.drop_all(engine)
 Base.metadata.create_all(engine)

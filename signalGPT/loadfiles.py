@@ -26,7 +26,7 @@ def load_conversation(data):
 
 	if "partner" in data:
 		load_direct_conversation(data)
-	elif "partners" in data:
+	elif "members" in data:
 		load_group_conversation(data)
 	else:
 		print("Could not load conversation.")

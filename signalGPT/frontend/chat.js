@@ -313,11 +313,14 @@ window.appdata = {
 		patch("/api/contact",data)
 			.then(response=>response.json())
 			.then(result=>{
-				this.contacts[data.handle] = { ...this.contacts[data.handle], ...result};
+				this.contacts[data.handle] = result;
 			})
 	},
 	addFriend(handle){
 		this.patchContact({handle:handle,friend:true});
+	},
+	removeFriend(handle) {
+		this.patchContact({handle:handle,friend:false});
 	},
 
 	// MESSAGES
