@@ -237,15 +237,8 @@ class Chat(Base):
 		else:
 			return msgs
 
-	def send_message(self,content=None,add_media=None):
-		if add_media:
-			name = generate_uid() + '.' + add_media['extension']
-			path = os.path.join('media',name)
-			with open(path,'wb') as fd:
-				fd.write(add_media['rawdata'])
-			return self.add_message(Protagonist,media_attached=path)
-		else:
-			return self.add_message(Protagonist,content)
+	def send_message(self,content=None,media_attached=None):
+		return self.add_message(Protagonist,content=content,media_attached=media_attached)
 
 	def print(self):
 		for msg in self.messages:

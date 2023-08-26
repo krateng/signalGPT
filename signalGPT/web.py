@@ -1,8 +1,9 @@
 from bottle import get, post, route, delete, static_file, run, request
 patch = lambda path: route(path,method='PATCH')
 from importlib import resources
+import os
 
-from .classes import Session, Partner, Chat, Message
+from .classes import Session, Partner, Chat, GroupChat, Message, generate_uid
 
 
 @get("/<path>")
@@ -41,6 +42,25 @@ def api_get_chat(uid):
 	with Session() as session:
 		return session.query(Chat).where(Chat.uid==uid).first().serialize()
 
+
+@post("/api/upload_media")
+def api_upload_media():
+	info = request.forms
+	file = request.files.get('file')
+	filedata = file.file.read()
+	fileext = file.filename.split('.')[-1].lower()
+
+	name = generate_uid() + '.' + fileext
+	path = os.path.join('media',name)
+	with open(path,'wb') as fd:
+		fd.write(filedata)
+
+	return {
+		'path':'/' + path
+	}
+
+
+
 @get("/api/get_message/<uid>")
 def api_get_message(uid):
 	with Session() as session:
@@ -57,7 +77,7 @@ def api_send_message():
 	info = request.json
 	with Session() as session:
 		chat = session.query(Chat).where(Chat.uid==info['chat_id']).first()
-		m = chat.send_message(content=info['content'].strip())
+		m = chat.send_message(content=info['content'].strip(),media_attached=info.get('media'))
 		# use client timestamp? or just register now?
 		session.add(m)
 		session.commit()
@@ -87,6 +107,8 @@ def api_regenerate_message():
 		session.commit()
 		return msgs[0].serialize()
 
+
+# CONTACT
 @post("/api/contact")
 def api_post_contact():
 	info = request.json
@@ -100,7 +122,6 @@ def api_post_contact():
 			'character':char.serialize(),
 			'chat':chat.serialize()
 		}
-
 @patch("/api/contact")
 def api_patch_contact():
 	info = request.json
@@ -110,6 +131,7 @@ def api_patch_contact():
 		session.commit()
 		return contact.serialize()
 
+# MESSAGE
 @patch("/api/message")
 def api_patch_message():
 	info = request.json
@@ -118,7 +140,6 @@ def api_patch_message():
 		message.__init__(**info)
 		session.commit()
 		return message.serialize()
-
 @delete("/api/message")
 def api_delete_message():
 	info = request.json
@@ -127,11 +148,29 @@ def api_delete_message():
 		session.delete(msg)
 		session.commit()
 
-@post("/api/delete_chat")
+
+# CHAT
+@post("/api/groupchat")
+def api_post_groupchat():
+	info = request.json
+	with Session() as session:
+		c = GroupChat(**info)
+		session.add(c)
+		session.commit()
+		return c.serialize()
+@patch("/api/chat")
+def api_patch_chat():
+	info = request.json
+	with Session() as session:
+		chat = session.query(Chat).where(Chat.uid==info.pop('uid')).first()
+		chat.__init__(**info)
+		session.commit()
+		return chat.serialize()
+@delete("/api/chat")
 def api_delete_chat():
 	info = request.json
 	with Session() as session:
-		chat = session.query(Chat).where(Chat.uid==info['uid']).first()
+		chat = session.query(Chat).where(Chat.uid==info.pop('uid')).first()
 		for msg in chat.messages:
 			session.delete(msg)
 		session.delete(chat)

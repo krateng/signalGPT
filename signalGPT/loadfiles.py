@@ -7,12 +7,6 @@ from .classes import Session, Partner, Protagonist, Message, GroupChat, DirectCh
 
 
 def load_all():
-	for f in os.listdir("./conversations"):
-		if f.split('.')[-1].lower() in ['yaml','yml']:
-			with open(os.path.join("./conversations",f),'r') as fd:
-				data = yaml.load(fd,Loader=yaml.SafeLoader)
-
-			load_conversation(data)
 
 	for f in os.listdir("./contacts"):
 		if f.split('.')[-1].lower() in ['yaml','yml']:
@@ -20,6 +14,16 @@ def load_all():
 				data = yaml.load(fd,Loader=yaml.SafeLoader)
 
 			load_contact(data)
+
+			
+	for f in os.listdir("./conversations"):
+		if f.split('.')[-1].lower() in ['yaml','yml']:
+			with open(os.path.join("./conversations",f),'r') as fd:
+				data = yaml.load(fd,Loader=yaml.SafeLoader)
+
+			load_conversation(data)
+
+
 
 
 def load_conversation(data):

@@ -178,7 +178,7 @@ window.appdata = {
 			});
 
 	},
-	sendMessage(content) {
+	sendMessage(content,media) {
 
 		var chatwindow = document.getElementById('chat');
 		var atEnd = ((chatwindow.scrollTop + 2000) > chatwindow.scrollHeight);
@@ -188,6 +188,7 @@ window.appdata = {
 		post("/api/send_message",{
 				chat_id: this.selected_chat.uid,
 				content: content,
+				media: media,
 				timestamp: timestamp
 			})
 				.then(response=>response.json())
@@ -203,35 +204,7 @@ window.appdata = {
 					}
 				});
 	},
-	uploadFile(event) {
-		event.preventDefault();
 
-		var chatwindow = document.getElementById('chat');
-		chatwindow.style.backgroundColor='';
-		var atEnd = ((chatwindow.scrollTop + 2000) > chatwindow.scrollHeight);
-
-		const file = event.dataTransfer.files[0];
-		const formData = new FormData();
-		formData.append('file', file);
-		formData.append('chat_id',this.selected_chat.uid);
-		fetch('/api/send_message_media', {
-	      method: 'POST',
-	      body: formData,
-	    })
-	    .then((response) => response.json())
-	    .then((result) => {
-				this.selected_chat.messages.push(result);
-				this.chats[this.selected_chat.uid].latest_message = this.selected_chat.messages.slice(-1)[0];
-
-				if (atEnd) {
-					this.$nextTick(()=>{
-						chatwindow.scrollTop = chatwindow.scrollHeight;
-					});
-
-				}
-
-	    })
-	},
 	requestResponse() {
 
 		var chatwindow = document.getElementById('chat');
@@ -274,7 +247,7 @@ window.appdata = {
 					this.requestResponse();
 				}
 				else {
-					this.sendMessage(element.value);
+					this.sendMessage(element.value,null);
 					element.value = "";
 
 				}
@@ -307,6 +280,51 @@ window.appdata = {
 			return text;
 	},
 
+
+	/// CHATS
+	postGroup() {
+		post("/api/groupchat",{})
+			.then(response=>response.json())
+			.then(result=>{
+				this.chats[result.uid] = result;
+				this.selected_chat = result;
+			})
+	},
+	patchChat(data) {
+		patch("/api/chat",data)
+			.then(response=>response.json())
+			.then(result=>{
+				this.chats[result.uid] = result;
+				this.selected_chat = result;
+			})
+	},
+	changeChatPicture(event) {
+		event.preventDefault();
+		var chatinfowindow = document.getElementById('chat_info');
+		chatinfowindow.style.backgroundColor='';
+
+		var uid = this.selected_chat.uid;
+
+		const file = event.dataTransfer.files[0];
+		const formData = new FormData();
+		formData.append('file', file);
+		fetch('/api/upload_media', {
+	      method: 'POST',
+	      body: formData,
+	    })
+	    .then((response) => response.json())
+	    .then((result) => {
+				if (this.chats[uid].groupchat) {
+					this.patchChat({uid:uid,image:result.path})
+				}
+				else {
+					this.patchContact({handle:this.chats[uid].partner,image:result.path})
+					// locally adjust chat to have same img
+					this.chats[uid].image = result.path;
+				}
+
+	    })
+	},
 
 	/// CONTACTS
 	patchContact(data) {
@@ -390,8 +408,32 @@ window.appdata = {
 				this.chats[this.selected_chat.uid].latest_message = this.selected_chat.messages.slice(-1)[0];
 			})
 	},
+
+	snedMessageMedia(event) {
+		event.preventDefault();
+		var chatwindow = document.getElementById('chat');
+		chatwindow.style.backgroundColor='';
+
+		var atEnd = ((chatwindow.scrollTop + 2000) > chatwindow.scrollHeight);
+		var uid = this.selected_chat.uid;
+
+		const file = event.dataTransfer.files[0];
+		const formData = new FormData();
+		formData.append('file', file);
+		fetch('/api/upload_media', {
+	      method: 'POST',
+	      body: formData,
+	    })
+	    .then((response) => response.json())
+	    .then((result) => {
+				this.sendMessage(null,result.path);
+
+	    })
+	},
+
+
 	deleteChat(chat_uid) {
-		post("/api/delete_chat",{
+		del("/api/chat",{
 				uid:chat_uid
 		})
 			.then(result=>{
