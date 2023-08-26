@@ -426,7 +426,7 @@ window.appdata = {
 	    })
 	    .then((response) => response.json())
 	    .then((result) => {
-				this.sendMessage(null,result.path);
+				this.sendMessage("",result.path);
 
 	    })
 	},

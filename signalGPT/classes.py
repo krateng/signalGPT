@@ -477,6 +477,20 @@ def maintenance():
 				session.delete(partner)
 		session.commit()
 
+		prefix = "/media/"
+		media = [ prefix + filename for filename in os.listdir("media") ]
+
+		for obj in (session.query(Partner).all() + session.query(GroupChat).all()):
+			if obj.image and (obj.image in media):
+				media.remove(obj.image)
+		for obj in session.query(Message).all():
+			if obj.media_attached and (obj.media_attached in media):
+				media.remove(obj.media_attached)
+		for filepath in media:
+			realfile = 'media/' + filepath.split('/')[-1]
+			print('Delete',realfile)
+			os.remove(realfile)
+
 engine = create_engine('sqlite:///database.sqlite')
 # ONLY TESTING
 #Base.metadata.drop_all(engine)
