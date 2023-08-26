@@ -24,11 +24,16 @@ def create_character_info(notes):
 		'img_prompt': a description of the character's profile picture.
 		Don't write in second person, simply describe what can be seen on the picture in a way that could be used as a prompt for an image generating AI.
 		Describe important details like hair color, ethnicity, clothes, accessories, eye color, etc.
+		Be concise and list important keywords
 
 		Use these exact keys. Do not add anything else to your output (like acknowledging the task or reminding me that this is a fictional character etc.) The full post must be valid json.
 		 '''
 	]
 	messages = [{"content":msg,"role":"system"} for msg in base_messages] + [{"role":"user","content":notes}]
+
+	print("Generating character...")
+	print("Prompt: " + notes)
+
 	completion = openai.ChatCompletion.create(model=config['model'],messages=messages)
 	message = completion['choices'][0]['message']
 	info = json.loads(message['content'])
@@ -42,14 +47,17 @@ def create_character_image(prompt):
 
 	if cookie := config.get('auth',{}).get('anydream',{}).get('cookie'):
 
+		print("Getting image from anydream...")
+		print("Prompt: " + prompt)
+
 		r = requests.post("https://www.anydream.xyz/api/a1_request",json={
 			'model': "ReAL",
 			'endpoint': "txt2img",
 			'params':{
 				'batch_size': 1,
 				'cfg_scale': "7",
-				'height':640,
-				'width': 640,
+				'height':1000,
+				'width': 1000,
 				'prompt':prompt,
 				'negative_prompt': ', '.join(negative_prompt),
 				'seed': -1,
@@ -61,7 +69,11 @@ def create_character_image(prompt):
 			'Cookie':cookie
 		}).json()
 
-		req_id = r['requestId']
+		if req_id := r.get('requestId'):
+			pass
+		else:
+			print(r)
+			return ""
 
 		import time
 		while True:
@@ -74,9 +86,12 @@ def create_character_image(prompt):
 				'Cookie':cookie
 			}).json()
 
-			if r['status'] == 'success':
-				return r['images'][0]['imgUrl']
-				break
+			if status := r.get('status'):
+				if status == 'success':
+					return r['images'][0]['imgUrl']
+			else:
+				print(r)
+				return ""
 
 	else:
 		return ""

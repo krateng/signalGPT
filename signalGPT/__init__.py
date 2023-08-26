@@ -10,13 +10,18 @@ try:
 except FileNotFoundError:
 	with open('config.yml','w') as fd:
 		config = {
-			'apikey':'0',
+			'apikey':None,
 			'model':'gpt-3.5-turbo-16k-0613',
 			'user':{
 				'name':'Anon',
 				'handle':'anon',
 				'description':'I am mysterious and unknowable. Love waffles.',
 				'preferred_emojis':'😃🪷🇰🇷'
+			},
+			'auth':{
+				'anydream':{
+					'cookie':None
+				}
 			}
 		}
 		yaml.dump(config,fd)
