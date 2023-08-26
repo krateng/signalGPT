@@ -306,24 +306,55 @@ window.appdata = {
 		var uid = this.selected_chat.uid;
 
 		const file = event.dataTransfer.files[0];
-		const formData = new FormData();
-		formData.append('file', file);
-		fetch('/api/upload_media', {
-	      method: 'POST',
-	      body: formData,
-	    })
-	    .then((response) => response.json())
-	    .then((result) => {
-				if (this.chats[uid].groupchat) {
-					this.patchChat({uid:uid,image:result.path})
-				}
-				else {
-					this.patchContact({handle:this.chats[uid].partner,image:result.path})
-					// locally adjust chat to have same img
-					this.chats[uid].image = result.path;
-				}
+		if (file) {
+			const formData = new FormData();
+			formData.append('file', file);
+			fetch('/api/upload_media', {
+		      method: 'POST',
+		      body: formData,
+		    })
+		    .then((response) => response.json())
+		    .then((result) => {
+					if (this.chats[uid].groupchat) {
+						this.patchChat({uid:uid,image:result.path})
+					}
+					else {
+						this.patchContact({handle:this.chats[uid].partner,image:result.path})
+						// locally adjust chat to have same img
+						this.chats[uid].image = result.path;
+					}
 
-	    })
+		    })
+		}
+
+	},
+	dragContact(event) {
+		var el = event.currentTarget;
+		var cid = el.dataset.chatid;
+		var partner = this.chats[cid].partner;
+		event.dataTransfer.setData('text/plain',partner);
+	},
+	dragContactReceive(event) {
+		event.preventDefault();
+		const contact_handle = event.dataTransfer.getData('text');
+		if (contact_handle) {
+			const el = event.currentTarget;
+			const cid = el.dataset.chatid;
+			const chat = this.chats[cid];
+			console.log(chat);
+			if (chat.groupchat) {
+				post("/api/add_chat_member",{
+					chat_uid: cid,
+					partner_handle: contact_handle
+				})
+					.then((response) => response.json())
+					.then((result=>{
+						chat.partners = result.partners;
+					}))
+				//chat.partners[contact_handle] = this.contacts[contact_handle].name;
+			}
+		}
+
 	},
 
 	/// CONTACTS
@@ -409,7 +440,7 @@ window.appdata = {
 			})
 	},
 
-	snedMessageMedia(event) {
+	sendMessageMedia(event) {
 		event.preventDefault();
 		var chatwindow = document.getElementById('chat');
 		chatwindow.style.backgroundColor='';
@@ -418,17 +449,20 @@ window.appdata = {
 		var uid = this.selected_chat.uid;
 
 		const file = event.dataTransfer.files[0];
-		const formData = new FormData();
-		formData.append('file', file);
-		fetch('/api/upload_media', {
-	      method: 'POST',
-	      body: formData,
-	    })
-	    .then((response) => response.json())
-	    .then((result) => {
-				this.sendMessage("",result.path);
+		if (file) {
+			const formData = new FormData();
+			formData.append('file', file);
+			fetch('/api/upload_media', {
+		      method: 'POST',
+		      body: formData,
+		    })
+		    .then((response) => response.json())
+		    .then((result) => {
+					this.sendMessage("",result.path);
 
-	    })
+		    })
+		}
+
 	},
 
 

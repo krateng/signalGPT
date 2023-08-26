@@ -175,6 +175,15 @@ def api_delete_chat():
 			session.delete(msg)
 		session.delete(chat)
 		session.commit()
+@post("/api/add_chat_member")
+def api_add_chat_member():
+	info = request.json
+	with Session() as session:
+		chat = session.query(Chat).where(Chat.uid==info.pop('chat_uid')).first()
+		person = session.query(Partner).where(Partner.handle==info.pop('partner_handle')).first()
+		chat.add_person(person)
+		session.commit()
+		return chat.serialize()
 
 
 run(port=9090)

@@ -181,6 +181,15 @@ img.profilepic {
     margin-bottom: 20px;
 }
 
+.admin_icon {
+	fill: var(--accent);
+	opacity: 50%;
+}
+.ui_info {
+	font-size: 60%;
+	margin-top:5px;
+}
+
 .message .admin_icons {
 	margin-left:8px;
 }
