@@ -28,5 +28,6 @@ for folder in ['media','contacts','conversations','backups']:
 openai.api_key = config['apikey']
 
 
-backupfile = os.path.join("backups",datetime.utcnow().strftime("%Y-%m-%d") + ".sqlite")
-shutil.copyfile("database.sqlite",backupfile)
+if os.path.exists("database.sqlite"):
+	backupfile = os.path.join("backups",datetime.utcnow().strftime("%Y-%m-%d") + ".sqlite")
+	shutil.copyfile("database.sqlite",backupfile)

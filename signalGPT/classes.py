@@ -15,7 +15,7 @@ from sqlalchemy.ext.declarative import declarative_base
 
 
 from .__init__ import config
-from .metaprompt import create_character_info
+from .metaprompt import create_character_info, create_character_image
 
 
 
@@ -76,6 +76,7 @@ class Partner(Base):
 			data['handle'] = results['handle']
 			data['bio'] = results['bio']
 			data['instructions'] = results['prompt']
+			data['image'] = create_character_image(results['img_prompt'])
 
 		super().__init__(**data)
 
