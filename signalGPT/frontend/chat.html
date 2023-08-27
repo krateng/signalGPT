@@ -138,15 +138,22 @@
         </div>
 
         <div id="chat_input">
-					<template for="emoji in userinfo.preferred_emojis.split('')">
-						<span x-text="emoji"></span>
-					</template>
-        	<input id="chat_input_field" x-on:keyup="keyboardInput(event)" placeholder="Message"></input>
+
+        	<input id="chat_input_field"
+						x-on:keyup="keyboardInput(event)"
+						onblur="this.cursorposition = this.selectionStart;"
+						onfocus="this.selectionStart = this.cursorposition; this.selectionEnd = this.cursorposition;"
+						placeholder="Message"></input>
 					<div x-show="current_input.match(usermatch_regex)" id="mention_dropdown">
 						<template x-for="user in (Object.keys(selected_chat?.partners || {}))"><div>
 							<p x-show="('@' + user).includes(current_input.match(usermatch_regex)?.[0]) && !current_input.includes('@' + user)" x-text="user" x-on:click="completeMention(user)"></p>
 						</div></template>
 					</div>
+					<span id="emojilist">
+					<template x-for="emoji in getEmojis()">
+						<span onclick="var e = document.getElementById('chat_input_field');e.value = (e.value.substring(0, e.cursorposition) + this.textContent + e.value.substring(e.cursorposition));e.cursorposition += this.textContent.length;e.focus();" x-text="emoji"></span>
+					</template>
+					</span>
         </div>
     </div>
 

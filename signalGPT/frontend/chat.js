@@ -94,6 +94,8 @@ function getDictValuesByAttribute(dict,attributes,reverse) {
 	return Object.values(dict).sort(sortfunc)
 }
 
+
+
 function post(url,data) {
 	return fetch(url,{
 		method:"POST",
@@ -487,6 +489,11 @@ window.appdata = {
 	},
 	markdown_to_html(markdown) {
 		return converter.makeHtml(markdown);
+	},
+	getEmojis() {
+		const seg = new Intl.Segmenter();
+		const segments = [...seg.segment(this.userinfo.preferred_emojis)]
+		return segments.map(x=>x.segment);
 	}
 }
 

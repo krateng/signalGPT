@@ -50,7 +50,7 @@ body {
     //flex-wrap: wrap;
     display: grid;
     grid-template-columns: 30% 70%;
-    grid-template-rows: 170px auto 90px;
+    grid-template-rows: 170px auto 100px;
     grid-template-areas:
       "chatlist chatinfo"
       "chatlist chat"
@@ -283,11 +283,20 @@ input {
 	background-color: var(--secondary);
 	border-radius: 10px;
 	height: 30px;
-	margin: 20px;
+	margin-left: 20px;
+	margin-top: 12px;
 	padding: 3px;
 	padding-left:12px;
 	width: 80%;
 	color: var(--primary);
+}
+#emojilist {
+	margin-left: 20px;
+	margin-top:6px;
+	display: inline-block;
+}
+#emojilist span {
+	cursor: pointer;
 }
 
 #mention_dropdown {

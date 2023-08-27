@@ -18,7 +18,7 @@ Only include general instructions on how to react, behave, speak etc., no specif
 'bio': A short biography they might use on social media (no more than 15-20 words)
 'img_prompt': a description of the character's profile picture.
 Don't write in second person, simply describe what can be seen in the picture in a way that could be used as a prompt for an image-generating AI.
-Describe important details like hair color, ethnicity, clothes, accessories, eye color, etc.
+Describe important details like gender, ethnicity, hair color, clothes, accessories, etc.
 Be concise and list important keywords
 'img_prompt_keywords': a json list of keywords to describe the character's profile picture from above.
 Use at least 10 keywords, but no more than 100
