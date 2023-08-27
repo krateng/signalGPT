@@ -114,20 +114,20 @@ def api_post_contact():
 	info = request.json
 	with Session() as session:
 		char = Partner(from_desc=info['desc'])
-		chat = char.start_direct_chat()
+		chat = char.start_direct_chat(session)
 		session.add(char)
 		session.add(chat)
 		session.commit()
-		return {
-			'character':char.serialize(),
-			'chat':chat.serialize()
-		}
+		return char.serialize()
 @patch("/api/contact")
 def api_patch_contact():
 	info = request.json
 	with Session() as session:
 		contact = session.query(Partner).where(Partner.handle==info.pop('handle')).first()
+		dir_chat = info.pop('start_chat',False)
 		contact.__init__(**info)
+		if dir_chat:
+			contact.start_direct_chat(session)
 		session.commit()
 		return contact.serialize()
 

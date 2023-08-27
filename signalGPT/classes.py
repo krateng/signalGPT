@@ -83,16 +83,17 @@ class Partner(Base):
 
 		self.color = self.color or generate_color()
 		#self.uid = self.uid or generate_uid()
-		if self.friend:
-			self.start_direct_chat()
 
 
-	def start_direct_chat(self):
+
+	def start_direct_chat(self,session):
 		if self.direct_chat:
 			return self.direct_chat
 
 		direct_chat = DirectChat()
 		direct_chat.partner = self
+		session.add(direct_chat)
+		session.commit()
 		return direct_chat
 
 	def serialize(self):
@@ -103,7 +104,8 @@ class Partner(Base):
 			'uid':self.uid,
 			'image':self.image,
 			'instructions':self.instructions,
-			'friend':self.friend
+			'friend':self.friend,
+			'direct_chat':self.direct_chat.serialize() if self.direct_chat else None
 		}
 	def add_contact(self):
 		self.permanent = True

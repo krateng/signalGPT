@@ -15,7 +15,7 @@ def load_all():
 
 			load_contact(data)
 
-			
+
 	for f in os.listdir("./conversations"):
 		if f.split('.')[-1].lower() in ['yaml','yml']:
 			with open(os.path.join("./conversations",f),'r') as fd:
@@ -38,8 +38,8 @@ def load_conversation(data):
 def load_direct_conversation(data):
 	with Session() as session:
 		p = session.query(Partner).where(Partner.handle==data['partner']).first()
-		chat = p.start_direct_chat()
-		session.add(chat)
+		chat = p.start_direct_chat(session)
+		#session.add(chat)
 
 		for msg in data['messages']:
 			if not msg.get('discard',False):
@@ -86,7 +86,7 @@ def load_group_conversation(data):
 def load_contact(data):
 
 	data['user_defined'] = True
-	data['friend'] = True
+	#data['friend'] = True
 
 	if data.get('image') and data['image'].startswith("./"):
 		data['image'] = "/media/" + data['image'].split("./",1)[1]

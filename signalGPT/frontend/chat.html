@@ -115,7 +115,7 @@
             <template x-for="[previous,message] in selected_chat?.messages?.map(arrayValueAndPrev)"><div>
             <span class="dateindicator" x-show="!sameDay(message.timestamp,previous?.timestamp)" x-text="formatDate(message.timestamp)"></span>
             <div :id="'message_' + message.uid" :class="message.own ? 'message sent' : 'message received'">
-                <img class="profilepic" x-bind:class="contacts[message.author]?.friend ? 'friend' : ''" x-show="!message.own" x-bind:src="contacts[message.author]?.image || '/user.png'" alt="Profile Image">
+                <img x-on:click="startChat(message.author)" class="profilepic" x-bind:class="contacts[message.author]?.friend ? 'friend' : ''" x-show="!message.own" x-bind:src="contacts[message.author]?.image || '/user.png'" alt="Profile Image">
                 <div x-show="!message.display_simplified" class="message-content">
                     <img class="attached_pic" x-show="message.media_attached && (message.media_type == 'image')" x-bind:src="message.media_attached"></img>
 										<video class="attached_video" x-show="message.media_attached && (message.media_type == 'video')" x-bind:src="message.media_attached" autoplay muted controls></video>

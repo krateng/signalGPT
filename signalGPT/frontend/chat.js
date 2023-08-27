@@ -234,11 +234,8 @@ window.appdata = {
 		})
 			.then(response=>response.json())
 			.then(result=>{
-				var char = result.character;
-				var chat = result.chat;
-				this.contacts[char.handle] = char;
-				this.chats[chat.uid] = chat;
-				console.log(result);
+				this.contacts[result.handle] = result;
+				this.chats[result.direct_chat.uid] = result.direct_chat;
 			})
 	},
 	keyboardInput(event) {
@@ -424,6 +421,27 @@ window.appdata = {
 	},
 	removeFriend(handle) {
 		this.patchContact({handle:handle,friend:false});
+	},
+	startChat(handle) {
+		for (var chat of Object.values(this.chats)) {
+			if (chat.partner == handle) {
+				this.selectChat(chat.uid);
+				return;
+			}
+		}
+
+		patch("/api/contact",{
+				handle:handle,
+				start_chat:true
+		})
+			.then(response=>response.json())
+			.then(result=>{
+				this.chats[result.direct_chat.uid] = result.direct_chat;
+				this.$nextTick(()=>{
+					this.selectChat(result.direct_chat.uid);
+				});
+
+			})
 	},
 
 	// MESSAGES
