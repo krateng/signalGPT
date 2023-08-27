@@ -76,7 +76,8 @@ class Partner(Base):
 			data['handle'] = results['handle']
 			data['bio'] = results['bio']
 			data['instructions'] = results['prompt']
-			data['image'] = create_character_image(results['img_prompt'])
+
+			data['image'] = create_character_image(results['img_prompt'],results['img_prompt_keywords'])
 
 		super().__init__(**data)
 
