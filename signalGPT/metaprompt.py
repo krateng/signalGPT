@@ -2,6 +2,8 @@ import openai
 import json
 import requests
 
+import browser_cookie3
+
 from .__init__ import config
 
 
@@ -52,7 +54,7 @@ def create_character_image(prompt,keywords):
 	# overwrite them if we can
 	if import_src := config.get('auth',{}).get('import_from'):
 
-		import browser_cookie3
+
 		import_func = {
 			'brave': browser_cookie3.brave
 		}

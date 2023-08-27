@@ -1,0 +1,33 @@
+[project]
+name = "signalGPT"
+version = "0.1"
+description = "Wrap your ChatGPT conversations in an IM app"
+#readme = "./README.md"
+requires-python = ">=3.9"
+#license = { file="./LICENSE" }
+authors = [ { name="Johannes Krattenmacher", email="misc@dev.krateng.ch" } ]
+
+urls.repository = "https://github.com/krateng/signalgpt"
+urls.documentation = "https://github.com/krateng/signalgpt"
+urls.homepage = "https://github.com/krateng/signalgpt"
+
+keywords = ["webserver","instant-messenger","webapp","chat","ai","llm"]
+classifiers = [
+	"Programming Language :: Python :: 3",
+	"License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+	"Operating System :: OS Independent"
+]
+
+dependencies = [
+	"bottle>=0.12.16",
+	"sqlalchemy>=1.4",
+	"PyYAML",
+	"openai",
+	"emoji",
+	"doreah",
+	"browser_cookie3"
+]
+
+[build-system]
+requires = ["flit_core >=3.2,<4"]
+build-backend = "flit_core.buildapi"
