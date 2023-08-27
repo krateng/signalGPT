@@ -273,6 +273,7 @@ window.appdata = {
 		var content = inputfield.value;
 		inputfield.value = content.replace(this.usermatch_regex,'@' + handle + ' ');
 		this.updateCurrentInput(inputfield.value);
+		inputfield.cursorposition = inputfield.value.length;
 		inputfield.focus();
 	},
 	formatMentions(text) {
@@ -330,6 +331,51 @@ window.appdata = {
 		}
 
 	},
+	editChatName() {
+		var textinput = document.getElementById('chat_name');
+		textinput.contentEditable = true;
+		textinput.classList.add('editing');
+		textinput.focus();
+	},
+	editChatNameSend() {
+		var textinput = document.getElementById('chat_name');
+		if (textinput.classList.contains('editing')) {
+			textinput.classList.remove('editing');
+			textinput.contentEditable = false;
+			textinput.innerHTML = textinput.textContent;
+			if (this.selected_chat.groupchat) {
+				this.patchChat({uid:this.selected_chat.uid,name:textinput.textContent});
+			}
+			else {
+				this.patchContact({handle:this.selected_chat.partner,name:textinput.textContent});
+			}
+
+		}
+	},
+	// these are technically both contact edits, but... eh, you understand
+	editChatDesc() {
+		var textinput = document.getElementById('chat_desc');
+		textinput.contentEditable = true;
+		textinput.classList.add('editing');
+		textinput.focus();
+	},
+	editChatDescSend() {
+		var textinput = document.getElementById('chat_desc');
+		if (textinput.classList.contains('editing')) {
+			textinput.classList.remove('editing');
+			textinput.contentEditable = false;
+			textinput.innerHTML = textinput.textContent;
+			if (this.selected_chat.groupchat) {
+				console.log("wtf man");
+			}
+			else {
+				this.patchContact({handle:this.selected_chat.partner,bio:textinput.textContent});
+			}
+
+		}
+	},
+
+
 	dragContact(event) {
 		var el = event.currentTarget;
 		var cid = el.dataset.chatid;
@@ -365,6 +411,12 @@ window.appdata = {
 			.then(response=>response.json())
 			.then(result=>{
 				this.contacts[data.handle] = result;
+				for (var chat of Object.values(this.chats)) {
+					if (chat.partner == data.handle) {
+						chat.name = result.name;
+						chat.desc = result.bio;
+					}
+				}
 			})
 	},
 	addFriend(handle){
@@ -482,7 +534,7 @@ window.appdata = {
 	userinfo:{},
 	manual_update:0,
 	current_input: "",
-	usermatch_regex: /@(\S*$)/g,
+	usermatch_regex: /@(\S*$)/gi,
 	html_to_markdown(html) {
 		html = DOMPurify.sanitize(html, {ALLOWED_TAGS:['b','i','strong','li','ol','p','h1','h2','h3','h4']});
 		return converter.makeMarkdown(html);

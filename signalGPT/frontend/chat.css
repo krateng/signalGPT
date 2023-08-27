@@ -133,7 +133,7 @@ img.profilepic.friend {
 	border:3px solid lawngreen;
 }
 img.profilepic {
-	border:3px solid gray;
+	border:3px solid grey;
 }
 
 #chat_info img.profilepic {
@@ -164,7 +164,11 @@ img.profilepic {
 .time {
     font-size: 11px;
     #color: var(--accent);
-		color: gray;
+		color: grey;
+}
+.message-simple-content + span.time {
+	margin-right:5px;
+	margin-left:5px;
 }
 
 
@@ -181,10 +185,7 @@ img.profilepic {
     margin-bottom: 20px;
 }
 
-.admin_icon {
-	fill: var(--accent);
-	opacity: 50%;
-}
+
 .ui_info {
 	font-size: 60%;
 	margin-top:5px;
@@ -194,7 +195,7 @@ img.profilepic {
 	margin-left:8px;
 }
 
-.message .admin_icons svg {
+.admin_icons svg {
 	height: 11px;
 	width: 11px;
 	visibility: hidden;
@@ -202,10 +203,10 @@ img.profilepic {
 	cursor: pointer;
 
 }
-.message .admin_icons:hover svg {
+.admin_icons:hover svg {
 	visibility:visible;
 }
-.message .admin_icons:hover svg:hover {
+.admin_icons:hover svg:hover {
 	fill: var(--primary);
 }
 
@@ -275,6 +276,9 @@ img.profilepic {
 }
 
 img.attached_pic {
+	width: 400px;
+}
+video.attached_video {
 	width: 400px;
 }
 
