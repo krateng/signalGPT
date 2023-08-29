@@ -51,15 +51,9 @@ def create_character_image(prompt,keywords):
 
 	# load cookies from file
 	cookies = config.get('auth',{}).get('anydream',{})
-	# overwrite them if we can
-	if import_src := config.get('auth',{}).get('import_from'):
 
-
-		import_func = {
-			'brave': browser_cookie3.brave
-		}
-		# update
-		cj = import_func[import_src]()
+	if not cookies:
+		cj = browser_cookie3.load(domain_name=".anydream.xyz")
 		cookies = {c.name:c.value for c in cj if "anydream" in c.domain}
 
 	if cookies:

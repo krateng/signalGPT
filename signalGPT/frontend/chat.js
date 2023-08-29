@@ -537,6 +537,45 @@ window.appdata = {
 
 	},
 
+	changeAuthor(msg_uid) {
+		for (var chat of Object.values(this.chats)) {
+			var i = chat.messages?.length;
+			while(i--) {
+				if (chat.messages[i].uid == msg_uid) {
+					var msg = chat.messages[i];
+					var participants = [this.userinfo.handle];
+					if (chat.groupchat) {
+						participants = participants.concat(Object.keys(chat.partners))
+					}
+					else {
+						participants.push(chat.partner);
+					}
+					console.log(participants);
+					var j = participants.length;
+					var pickNext = false;
+					while (j-- || true) {
+						if (j<0) {
+							j = participants.length-1;
+						}
+						if (pickNext) {
+							if (participants[j] == this.userinfo.handle) {
+								this.patchMessage({uid:msg_uid,user:true})
+							}
+							else {
+								this.patchMessage({uid:msg_uid,author_handle:participants[j],user:false});
+							}
+
+							break;
+						}
+						if (msg.author == participants[j]) {
+							pickNext = true;
+						}
+					}
+				}
+			}
+		}
+	},
+
 
 	deleteChat(chat_uid) {
 		del("/api/chat",{

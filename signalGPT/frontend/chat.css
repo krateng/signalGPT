@@ -276,12 +276,13 @@ img.profilepic {
     color: var(--msgreceived_text);
 }
 
-img.attached_pic {
-	width: 400px;
+img.attached_pic,video.attached_video {
+	width: auto;
+	height: 500px;
+	object-fit:cover;
 }
-video.attached_video {
-	width: 400px;
-}
+
+
 
 input {
 	all: unset;
