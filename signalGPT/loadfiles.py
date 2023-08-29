@@ -48,7 +48,6 @@ def load_direct_conversation(data):
 				if m:
 					m.__init__(
 						content=msg['content'],
-						user=msg['user'],
 						author=p if not msg['user'] else None
 					)
 				else:
@@ -56,7 +55,6 @@ def load_direct_conversation(data):
 						timestamp=ts,
 						chat=chat,
 						content=msg['content'],
-						user=msg['user'],
 						author=p if not msg['user'] else None
 					)
 					session.add(m)

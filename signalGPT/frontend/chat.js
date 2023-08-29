@@ -198,7 +198,7 @@ window.appdata = {
 					console.log(result);
 					this.selected_chat.messages.push(result);
 					this.chats[this.selected_chat.uid].latest_message = this.selected_chat.messages.slice(-1)[0];
-					if (atEnd) {
+					if (atEnd || true) { //always scroll down
 						this.$nextTick(()=>{
 							chatwindow.scrollTop = chatwindow.scrollHeight;
 						});
@@ -559,10 +559,10 @@ window.appdata = {
 						}
 						if (pickNext) {
 							if (participants[j] == this.userinfo.handle) {
-								this.patchMessage({uid:msg_uid,user:true})
+								this.patchMessage({uid:msg_uid,author_handle:null})
 							}
 							else {
-								this.patchMessage({uid:msg_uid,author_handle:participants[j],user:false});
+								this.patchMessage({uid:msg_uid,author_handle:participants[j]});
 							}
 
 							break;

@@ -138,7 +138,6 @@ class Protagonist:
 class Message(Base):
 	__tablename__ = 'messages'
 
-	user = Column(Boolean,default=False)
 	uid = Column(Integer,primary_key=True)
 	chat_id = Column(Integer,ForeignKey('chats.uid'))
 	chat = relationship('Chat',backref='messages')
@@ -154,10 +153,10 @@ class Message(Base):
 		super().__init__(**data)
 
 	def get_author(self):
-		if self.user:
-			return Protagonist()
-		else:
-			return self.author
+		return self.author or Protagonist()
+
+	def is_from_user(self):
+		return (self.author_handle is None)
 
 	def print(self):
 		self.get_author().print_message(self.content)
@@ -167,7 +166,7 @@ class Message(Base):
 		return {
 			'uid': self.uid,
 			'author':self.get_author().handle,
-			'own':self.user,
+			'own':(self.author_handle is None),
 			'content':self.content or "",
 			'media_attached':self.media_attached,
 			'media_type':get_media_type(self.media_attached),
@@ -332,7 +331,7 @@ class DirectChat(Chat):
 			}
 		] + [
 			{
-				'role':"user" if (msg.user) else "assistant",
+				'role':"user" if (msg.is_from_user()) else "assistant",
 				'content': msg.display_for_textonly_model()
 			}
 			for msg in messages
