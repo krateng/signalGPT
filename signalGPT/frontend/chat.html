@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="chat.css">
     <script src="//unpkg.com/showdown/dist/showdown.min.js"></script>
-		<script src="//unpkg.com/dompurify@0.8.9/dist/purify.min.js"></script>
+		<script src="//unpkg.com/dompurify/dist/purify.min.js"></script>
     <script src="chat.js"></script>
     <script src="//unpkg.com/alpinejs" defer></script>
 		<link rel="shortcut icon" href="/favicon.png" />
@@ -27,16 +27,16 @@
 							x-on:dragover.prevent
 							x-on:drop="dragContactReceive(event)"
 							>
-                <img draggable="false" x-bind:src="chat.image || (chat.groupchat ? '/group.png' : '/user.png')" class="profilepic" x-bind:class="chat.groupchat ? 'group' : (contacts[chat.partner].friend ? 'friend' : '')" alt="Profile Image">
+                <img draggable="false" x-bind:src="chat.groupchat ? (chat.image || '/group.png') : (chat.partner.image || '/user.png')" class="profilepic" x-bind:class="chat.groupchat ? 'group' : (chat.partner.friend ? 'friend' : '')" alt="Profile Image">
                 <div class="contact-info">
-                    <h4 x-text="chat.name"></h4>
+                    <h4 x-text="chat.name ?? chat.partner.name"></h4>
                     <p x-show="chat.latest_message">
                     	<span x-show="chat.groupchat">
-                    		<b x-text="(chat.partners?.[chat.latest_message?.author] || 'You') + ': '"></b>
+                    		<b x-text="(chat.latest_message?.author?.name || 'You') + ': '"></b>
                     	</span>
                     	<span x-text="chat.latest_message?.content || '[Media]'"></span>
                     </p>
-                    <p x-show="!chat.latest_message" x-text="chat.desc"></p>
+                    <p x-show="!chat.latest_message" x-text="chat.groupchat ? chat.desc : chat.partner.bio"></p>
                 </div>
                 <span class="time" x-text="contextualTimeDescription(chat.latest_message?.timestamp) ?? ''"></span>
             </div>
@@ -55,19 +55,21 @@
 					<button x-show="false"></button>
 				</div>
 
-	<div id="chat_info" x-bind:data-chatid="selected_chat.uid"
+
+	<div  id="chat_info" x-bind:data-chatid="selected_chat?.uid"
 		ondragover="event.preventDefault();this.style.backgroundColor='black';"
 		ondragleave="event.preventDefault();this.style.backgroundColor='';"
 		x-on:drop="changeChatPicture(event);dragContactReceive(event);" x-bind:data-chatid="chat.uid">
+		<template x-if="selected_chat">
 		<table><tr>
 			<td>
-				<img x-show="selected_chat.name" x-bind:src="selected_chat.image || (selected_chat.groupchat ? '/group.png' : '/user.png')" class="profilepic" x-bind:class="selected_chat.groupchat ? 'group' : (contacts[selected_chat.partner]?.friend ? 'friend' : '')" alt="Profile Image">
+				<img x-bind:src="selected_chat?.groupchat ? (selected_chat.image || '/group.png') : (selected_chat?.partner.image || '/user.png')" class="profilepic" x-bind:class="selected_chat?.groupchat ? 'group' : (selected_chat?.partner?.friend ? 'friend' : '')" alt="Profile Image">
 			</td>
 			<td>
-				<h2 id="chat_name" class="chatname" x-text="selected_chat.name" x-on:focusout="editChatNameSend()"></h2>
+				<h2 id="chat_name" class="chatname" x-text="selected_chat?.name || selected_chat?.partner?.name" x-on:focusout="editChatNameSend()"></h2>
 				<span class="admin_icons">
-					<svg x-show="selected_chat.name && !selected_chat.groupchat" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" >
-						<title x-text="contacts[selected_chat?.partner]?.instructions"></title>
+					<svg x-show="!selected_chat?.groupchat" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" >
+						<title x-text="selected_chat?.partner?.instructions"></title>
 						<path d="M13 7.5a1 1 0 1 1-2 0 1 1 0 0 1 2 0Zm-3 3.75a.75.75 0 0 1 .75-.75h1.5a.75.75 0 0 1 .75.75v4.25h.75a.75.75 0 0 1 0 1.5h-3a.75.75 0 0 1 0-1.5h.75V12h-.75a.75.75 0 0 1-.75-.75Z"></path>
 						<path d="M12 1c6.075 0 11 4.925 11 11s-4.925 11-11 11S1 18.075 1 12 5.925 1 12 1ZM2.5 12a9.5 9.5 0 0 0 9.5 9.5 9.5 9.5 0 0 0 9.5-9.5A9.5 9.5 0 0 0 12 2.5 9.5 9.5 0 0 0 2.5 12Z"></path>
 					</svg>
@@ -75,25 +77,25 @@
 				</span>
 
 				<br/>
-				<span class="handle" x-show="selected_chat.name && !selected_chat.groupchat" x-text="'@' + selected_chat.partner"></span>
-				<br x-show="selected_chat.name && !selected_chat.groupchat" /><br/>
-				<span id="chat_desc" x-show="!selected_chat.groupchat" x-text="selected_chat.desc" x-on:focusout="editChatDescSend()"></span>
-				<span x-show="!selected_chat.groupchat" class="admin_icons">
+				<span class="handle" x-show="!selected_chat?.groupchat" x-text="'@' + selected_chat?.partner?.handle"></span>
+				<br x-show="!selected_chat?.groupchat" /><br/>
+				<span id="chat_desc" x-show="!selected_chat?.groupchat" x-text="selected_chat?.partner?.bio" x-on:focusout="editChatDescSend()"></span>
+				<span x-show="!selected_chat?.groupchat" class="admin_icons">
 					<svg x-on:click="editChatDesc()" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M17.263 2.177a1.75 1.75 0 0 1 2.474 0l2.586 2.586a1.75 1.75 0 0 1 0 2.474L19.53 10.03l-.012.013L8.69 20.378a1.753 1.753 0 0 1-.699.409l-5.523 1.68a.748.748 0 0 1-.747-.188.748.748 0 0 1-.188-.747l1.673-5.5a1.75 1.75 0 0 1 .466-.756L14.476 4.963ZM4.708 16.361a.26.26 0 0 0-.067.108l-1.264 4.154 4.177-1.271a.253.253 0 0 0 .1-.059l10.273-9.806-2.94-2.939-10.279 9.813ZM19 8.44l2.263-2.262a.25.25 0 0 0 0-.354l-2.586-2.586a.25.25 0 0 0-.354 0L16.061 5.5Z"></path></svg>
 				</span>
-				<span x-show="selected_chat.groupchat"><b>Members: </b>
-					<span x-text="(Object.values(selected_chat?.partners || {}).concat(['You'])).join(', ')"></span><br/>
-					<span class="ui_info" x-show="selected_chat.groupchat">Drag contacts onto the group chat to add them</span>
+				<span x-show="selected_chat?.groupchat"><b>Members: </b>
+					<span x-text="selected_chat?.partners?.map(x=>x.name).concat(['You']).join(', ')"></span><br/>
+					<span class="ui_info">Drag contacts onto the group chat to add them</span>
 				</span>
 				<br/><br/>
 
-				<button x-on:click="addFriend(selected_chat.partner)" class="contact_button" x-show="selected_chat.name && !selected_chat.groupchat && !contacts[selected_chat.partner]?.friend" title="Add as friend">
+				<button x-on:click="addFriend(selected_chat.partner.handle)" class="contact_button" x-show="selected_chat && !selected_chat.groupchat && !selected_chat.partner.friend" title="Add as friend">
 					<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" ><path d="M4 9.5a5 5 0 1 1 7.916 4.062 7.973 7.973 0 0 1 5.018 7.166.75.75 0 1 1-1.499.044 6.469 6.469 0 0 0-12.932 0 .75.75 0 0 1-1.499-.044 7.972 7.972 0 0 1 5.059-7.181A4.994 4.994 0 0 1 4 9.5ZM9 6a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Zm10.25-5a.75.75 0 0 1 .75.75V4h2.25a.75.75 0 0 1 0 1.5H20v2.25a.75.75 0 0 1-1.5 0V5.5h-2.25a.75.75 0 0 1 0-1.5h2.25V1.75a.75.75 0 0 1 .75-.75Z"></path></svg>
 				</button>
-				<button x-on:click="removeFriend(selected_chat.partner)" class="contact_button" x-show="selected_chat.name && !selected_chat.groupchat && contacts[selected_chat.partner]?.friend" title="Remove friend">
+				<button x-on:click="removeFriend(selected_chat.partner.handle)" class="contact_button" x-show="selected_chat && !selected_chat.groupchat && selected_chat.partner?.friend" title="Remove friend">
 					<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" ><path d="M 4 9.5 a 5 5 0 1 1 7.916 4.062 a 7.973 7.973 0 0 1 5.018 7.166 a 0.75 0.75 0 1 1 -1.499 0.044 a 6.469 6.469 0 0 0 -12.932 0 a 0.75 0.75 0 0 1 -1.499 -0.044 a 7.972 7.972 0 0 1 5.059 -7.181 A 4.994 4.994 0 0 1 4 9.5 Z M 9 6 a 3.5 3.5 0 1 0 0 7 a 3.5 3.5 0 0 0 0 -7 m 0 -2 m 13.25 0 a 0.75 0.75 0 0 1 0 1.5 h -2.25 v 0 h -3.75 a 0.75 0.75 0 0 1 0 -1.5 Z"></path></svg>
 				</button>
-				<button x-show="selected_chat.name && (selected_chat.groupchat || !contacts[selected_chat.partner].friend)" x-on:click="deleteChat(selected_chat.uid)" title="Delete this Chat">
+				<button x-show="selected_chat && (selected_chat.groupchat || !selected_chat.partner.friend)" x-on:click="deleteChat(selected_chat.uid)" title="Delete this Chat">
 					<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" ><path d="M16 1.75V3h5.25a.75.75 0 0 1 0 1.5H2.75a.75.75 0 0 1 0-1.5H8V1.75C8 .784 8.784 0 9.75 0h4.5C15.216 0 16 .784 16 1.75Zm-6.5 0V3h5V1.75a.25.25 0 0 0-.25-.25h-4.5a.25.25 0 0 0-.25.25ZM4.997 6.178a.75.75 0 1 0-1.493.144L4.916 20.92a1.75 1.75 0 0 0 1.742 1.58h10.684a1.75 1.75 0 0 0 1.742-1.581l1.413-14.597a.75.75 0 0 0-1.494-.144l-1.412 14.596a.25.25 0 0 1-.249.226H6.658a.25.25 0 0 1-.249-.226L4.997 6.178Z"></path><path d="M9.206 7.501a.75.75 0 0 1 .793.705l.5 8.5A.75.75 0 1 1 9 16.794l-.5-8.5a.75.75 0 0 1 .705-.793Zm6.293.793A.75.75 0 1 0 14 8.206l-.5 8.5a.75.75 0 0 0 1.498.088l.5-8.5Z"></path></svg>
 				</button>
 
@@ -101,47 +103,53 @@
 
 			</td>
 		</tr></table>
-
+		</template>
 
 
 
 	</div>
 
-        <div id="chat" x-bind:data-chatid="selected_chat.uid"
+
+        <div id="chat" x-bind:data-chatid="selected_chat?.uid"
 					ondragover="event.preventDefault();this.style.backgroundColor='black';"
 					ondragleave="event.preventDefault();this.style.backgroundColor='';"
 					x-on:drop="sendMessageMedia(event);dragContactReceive(event);">
 
-            <template x-for="[previous,message] in selected_chat?.messages?.map(arrayValueAndPrev)"><div>
-            <span class="dateindicator" x-show="!sameDay(message.timestamp,previous?.timestamp)" x-text="formatDate(message.timestamp)"></span>
-            <div :id="'message_' + message.uid" :class="message.own ? 'message sent' : 'message received'">
-                <img x-on:click="startChat(message.author)" class="profilepic" x-bind:class="contacts[message.author]?.friend ? 'friend' : ''" x-show="!message.own" x-bind:src="contacts[message.author]?.image || '/user.png'" alt="Profile Image">
-                <div x-show="!message.display_simplified" class="message-content">
-                    <img class="attached_pic" x-show="message.media_attached && (message.media_type == 'image')" x-bind:src="message.media_attached"></img>
-										<video class="attached_video" x-show="message.media_attached && (message.media_type == 'video')" x-bind:src="message.media_attached" autoplay muted loop controls></video>
-                    <h5 x-show="!message.own && !message.media_attached" x-text="selected_chat.partners?.[message?.author]"></h5>
-                    <p class="message_text" x-on:focusout="editMessageSend(message.uid)" x-bind:data-msgid="message.uid" x-html="markdown_to_html(formatMentions(message.content))"></p>
-                    <span class="time" x-text="formatTime(message.timestamp)"></span>
-										<span class="admin_icons">
+					<template x-if="selected_chat">
+            <template x-for="[previous,message] in (selected_chat?.messages?.map(arrayValueAndPrev) ?? [])">
+
+							<div>
+		            <span class="dateindicator" x-show="!sameDay(message.timestamp,previous?.timestamp)" x-text="formatDate(message.timestamp)"></span>
+		            <div :id="'message_' + message.uid" :class="message.own ? 'message sent' : 'message received'">
+		                <img x-on:click="startChat(message.author.handle)" class="profilepic" x-bind:class="message.author?.friend ? 'friend' : ''" x-show="!message.own" x-bind:src="message.author?.image || '/user.png'" alt="Profile Image">
+		                <div x-show="!message.display_simplified" class="message-content">
+		                    <img class="attached_pic" x-show="message.media_attached && (message.media_type == 'image')" x-bind:src="message.media_attached"></img>
+												<video class="attached_video" x-show="message.media_attached && (message.media_type == 'video')" x-bind:src="message.media_attached" autoplay muted loop controls></video>
+		                    <h5 x-show="!message.own && !message.media_attached" x-text="message?.author?.name"></h5>
+		                    <p class="message_text" x-on:focusout="editMessageSend(message.uid)" x-bind:data-msgid="message.uid" x-html="markdown_to_html(formatMentions(message.content))"></p>
+		                    <span class="time" x-text="formatTime(message.timestamp)"></span>
+												<span class="admin_icons">
+													<svg x-on:click="editMessage(message.uid)" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M17.263 2.177a1.75 1.75 0 0 1 2.474 0l2.586 2.586a1.75 1.75 0 0 1 0 2.474L19.53 10.03l-.012.013L8.69 20.378a1.753 1.753 0 0 1-.699.409l-5.523 1.68a.748.748 0 0 1-.747-.188.748.748 0 0 1-.188-.747l1.673-5.5a1.75 1.75 0 0 1 .466-.756L14.476 4.963ZM4.708 16.361a.26.26 0 0 0-.067.108l-1.264 4.154 4.177-1.271a.253.253 0 0 0 .1-.059l10.273-9.806-2.94-2.939-10.279 9.813ZM19 8.44l2.263-2.262a.25.25 0 0 0 0-.354l-2.586-2.586a.25.25 0 0 0-.354 0L16.061 5.5Z"></path></svg>
+													<svg x-on:click="regenerateMessage(message.uid)" x-show="!message.own" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3.38 8A9.502 9.502 0 0 1 12 2.5a9.502 9.502 0 0 1 9.215 7.182.75.75 0 1 0 1.456-.364C21.473 4.539 17.15 1 12 1a10.995 10.995 0 0 0-9.5 5.452V4.75a.75.75 0 0 0-1.5 0V8.5a1 1 0 0 0 1 1h3.75a.75.75 0 0 0 0-1.5H3.38Zm-.595 6.318a.75.75 0 0 0-1.455.364C2.527 19.461 6.85 23 12 23c4.052 0 7.592-2.191 9.5-5.451v1.701a.75.75 0 0 0 1.5 0V15.5a1 1 0 0 0-1-1h-3.75a.75.75 0 0 0 0 1.5h2.37A9.502 9.502 0 0 1 12 21.5c-4.446 0-8.181-3.055-9.215-7.182Z"></path></svg>
+													<svg x-on:click="deleteMessage(message.uid)" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M16 1.75V3h5.25a.75.75 0 0 1 0 1.5H2.75a.75.75 0 0 1 0-1.5H8V1.75C8 .784 8.784 0 9.75 0h4.5C15.216 0 16 .784 16 1.75Zm-6.5 0V3h5V1.75a.25.25 0 0 0-.25-.25h-4.5a.25.25 0 0 0-.25.25ZM4.997 6.178a.75.75 0 1 0-1.493.144L4.916 20.92a1.75 1.75 0 0 0 1.742 1.58h10.684a1.75 1.75 0 0 0 1.742-1.581l1.413-14.597a.75.75 0 0 0-1.494-.144l-1.412 14.596a.25.25 0 0 1-.249.226H6.658a.25.25 0 0 1-.249-.226L4.997 6.178Z"></path><path d="M9.206 7.501a.75.75 0 0 1 .793.705l.5 8.5A.75.75 0 1 1 9 16.794l-.5-8.5a.75.75 0 0 1 .705-.793Zm6.293.793A.75.75 0 1 0 14 8.206l-.5 8.5a.75.75 0 0 0 1.498.088l.5-8.5Z"></path></svg>
+													<svg x-on:click="changeAuthor(message.uid)" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3.5 8a5.5 5.5 0 1 1 8.596 4.547 9.005 9.005 0 0 1 5.9 8.18.751.751 0 0 1-1.5.045 7.5 7.5 0 0 0-14.993 0 .75.75 0 0 1-1.499-.044 9.005 9.005 0 0 1 5.9-8.181A5.496 5.496 0 0 1 3.5 8ZM9 4a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm8.29 4c-.148 0-.292.01-.434.03a.75.75 0 1 1-.212-1.484 4.53 4.53 0 0 1 3.38 8.097 6.69 6.69 0 0 1 3.956 6.107.75.75 0 0 1-1.5 0 5.193 5.193 0 0 0-3.696-4.972l-.534-.16v-1.676l.41-.209A3.03 3.03 0 0 0 17.29 8Z"></path></svg>
+												</span>
+		                </div>
+										<div x-show="message.display_simplified" class="message-simple-content">
+											<span x-text="message.content"></span>
+										</div>
+										<span x-show="message.display_simplified" class="time" x-text="formatTime(message.timestamp)"></span>
+										<span x-show="message.display_simplified" class="admin_icons">
 											<svg x-on:click="editMessage(message.uid)" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24"><path d="M17.263 2.177a1.75 1.75 0 0 1 2.474 0l2.586 2.586a1.75 1.75 0 0 1 0 2.474L19.53 10.03l-.012.013L8.69 20.378a1.753 1.753 0 0 1-.699.409l-5.523 1.68a.748.748 0 0 1-.747-.188.748.748 0 0 1-.188-.747l1.673-5.5a1.75 1.75 0 0 1 .466-.756L14.476 4.963ZM4.708 16.361a.26.26 0 0 0-.067.108l-1.264 4.154 4.177-1.271a.253.253 0 0 0 .1-.059l10.273-9.806-2.94-2.939-10.279 9.813ZM19 8.44l2.263-2.262a.25.25 0 0 0 0-.354l-2.586-2.586a.25.25 0 0 0-.354 0L16.061 5.5Z"></path></svg>
 											<svg x-on:click="regenerateMessage(message.uid)" x-show="!message.own" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24"><path d="M3.38 8A9.502 9.502 0 0 1 12 2.5a9.502 9.502 0 0 1 9.215 7.182.75.75 0 1 0 1.456-.364C21.473 4.539 17.15 1 12 1a10.995 10.995 0 0 0-9.5 5.452V4.75a.75.75 0 0 0-1.5 0V8.5a1 1 0 0 0 1 1h3.75a.75.75 0 0 0 0-1.5H3.38Zm-.595 6.318a.75.75 0 0 0-1.455.364C2.527 19.461 6.85 23 12 23c4.052 0 7.592-2.191 9.5-5.451v1.701a.75.75 0 0 0 1.5 0V15.5a1 1 0 0 0-1-1h-3.75a.75.75 0 0 0 0 1.5h2.37A9.502 9.502 0 0 1 12 21.5c-4.446 0-8.181-3.055-9.215-7.182Z"></path></svg>
 											<svg x-on:click="deleteMessage(message.uid)" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24"><path d="M16 1.75V3h5.25a.75.75 0 0 1 0 1.5H2.75a.75.75 0 0 1 0-1.5H8V1.75C8 .784 8.784 0 9.75 0h4.5C15.216 0 16 .784 16 1.75Zm-6.5 0V3h5V1.75a.25.25 0 0 0-.25-.25h-4.5a.25.25 0 0 0-.25.25ZM4.997 6.178a.75.75 0 1 0-1.493.144L4.916 20.92a1.75 1.75 0 0 0 1.742 1.58h10.684a1.75 1.75 0 0 0 1.742-1.581l1.413-14.597a.75.75 0 0 0-1.494-.144l-1.412 14.596a.25.25 0 0 1-.249.226H6.658a.25.25 0 0 1-.249-.226L4.997 6.178Z"></path><path d="M9.206 7.501a.75.75 0 0 1 .793.705l.5 8.5A.75.75 0 1 1 9 16.794l-.5-8.5a.75.75 0 0 1 .705-.793Zm6.293.793A.75.75 0 1 0 14 8.206l-.5 8.5a.75.75 0 0 0 1.498.088l.5-8.5Z"></path></svg>
 											<svg x-on:click="changeAuthor(message.uid)" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3.5 8a5.5 5.5 0 1 1 8.596 4.547 9.005 9.005 0 0 1 5.9 8.18.751.751 0 0 1-1.5.045 7.5 7.5 0 0 0-14.993 0 .75.75 0 0 1-1.499-.044 9.005 9.005 0 0 1 5.9-8.181A5.496 5.496 0 0 1 3.5 8ZM9 4a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm8.29 4c-.148 0-.292.01-.434.03a.75.75 0 1 1-.212-1.484 4.53 4.53 0 0 1 3.38 8.097 6.69 6.69 0 0 1 3.956 6.107.75.75 0 0 1-1.5 0 5.193 5.193 0 0 0-3.696-4.972l-.534-.16v-1.676l.41-.209A3.03 3.03 0 0 0 17.29 8Z"></path></svg>
 										</span>
-                </div>
-								<div x-show="message.display_simplified" class="message-simple-content">
-									<span x-text="message.content"></span>
-								</div>
-								<span x-show="message.display_simplified" class="time" x-text="formatTime(message.timestamp)"></span>
-								<span x-show="message.display_simplified" class="admin_icons">
-									<svg x-on:click="editMessage(message.uid)" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24"><path d="M17.263 2.177a1.75 1.75 0 0 1 2.474 0l2.586 2.586a1.75 1.75 0 0 1 0 2.474L19.53 10.03l-.012.013L8.69 20.378a1.753 1.753 0 0 1-.699.409l-5.523 1.68a.748.748 0 0 1-.747-.188.748.748 0 0 1-.188-.747l1.673-5.5a1.75 1.75 0 0 1 .466-.756L14.476 4.963ZM4.708 16.361a.26.26 0 0 0-.067.108l-1.264 4.154 4.177-1.271a.253.253 0 0 0 .1-.059l10.273-9.806-2.94-2.939-10.279 9.813ZM19 8.44l2.263-2.262a.25.25 0 0 0 0-.354l-2.586-2.586a.25.25 0 0 0-.354 0L16.061 5.5Z"></path></svg>
-									<svg x-on:click="regenerateMessage(message.uid)" x-show="!message.own" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24"><path d="M3.38 8A9.502 9.502 0 0 1 12 2.5a9.502 9.502 0 0 1 9.215 7.182.75.75 0 1 0 1.456-.364C21.473 4.539 17.15 1 12 1a10.995 10.995 0 0 0-9.5 5.452V4.75a.75.75 0 0 0-1.5 0V8.5a1 1 0 0 0 1 1h3.75a.75.75 0 0 0 0-1.5H3.38Zm-.595 6.318a.75.75 0 0 0-1.455.364C2.527 19.461 6.85 23 12 23c4.052 0 7.592-2.191 9.5-5.451v1.701a.75.75 0 0 0 1.5 0V15.5a1 1 0 0 0-1-1h-3.75a.75.75 0 0 0 0 1.5h2.37A9.502 9.502 0 0 1 12 21.5c-4.446 0-8.181-3.055-9.215-7.182Z"></path></svg>
-									<svg x-on:click="deleteMessage(message.uid)" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24"><path d="M16 1.75V3h5.25a.75.75 0 0 1 0 1.5H2.75a.75.75 0 0 1 0-1.5H8V1.75C8 .784 8.784 0 9.75 0h4.5C15.216 0 16 .784 16 1.75Zm-6.5 0V3h5V1.75a.25.25 0 0 0-.25-.25h-4.5a.25.25 0 0 0-.25.25ZM4.997 6.178a.75.75 0 1 0-1.493.144L4.916 20.92a1.75 1.75 0 0 0 1.742 1.58h10.684a1.75 1.75 0 0 0 1.742-1.581l1.413-14.597a.75.75 0 0 0-1.494-.144l-1.412 14.596a.25.25 0 0 1-.249.226H6.658a.25.25 0 0 1-.249-.226L4.997 6.178Z"></path><path d="M9.206 7.501a.75.75 0 0 1 .793.705l.5 8.5A.75.75 0 1 1 9 16.794l-.5-8.5a.75.75 0 0 1 .705-.793Zm6.293.793A.75.75 0 1 0 14 8.206l-.5 8.5a.75.75 0 0 0 1.498.088l.5-8.5Z"></path></svg>
-									<svg x-on:click="changeAuthor(message.uid)" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3.5 8a5.5 5.5 0 1 1 8.596 4.547 9.005 9.005 0 0 1 5.9 8.18.751.751 0 0 1-1.5.045 7.5 7.5 0 0 0-14.993 0 .75.75 0 0 1-1.499-.044 9.005 9.005 0 0 1 5.9-8.181A5.496 5.496 0 0 1 3.5 8ZM9 4a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm8.29 4c-.148 0-.292.01-.434.03a.75.75 0 1 1-.212-1.484 4.53 4.53 0 0 1 3.38 8.097 6.69 6.69 0 0 1 3.956 6.107.75.75 0 0 1-1.5 0 5.193 5.193 0 0 0-3.696-4.972l-.534-.16v-1.676l.41-.209A3.03 3.03 0 0 0 17.29 8Z"></path></svg>
-								</span>
-            </div>
+            			</div>
 
-            </div></template>
+            	</div>
+						</template>
+					</template>
         </div>
 
         <div id="chat_input">

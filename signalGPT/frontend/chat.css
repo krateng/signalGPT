@@ -97,6 +97,10 @@ body {
 	grid-area: newmessage;
 }
 
+#newcontact {
+	grid-area: newcontact;
+}
+
 h2.chatname {
 	margin-bottom:0px;
 	display: inline;

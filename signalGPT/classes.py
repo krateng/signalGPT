@@ -101,11 +101,12 @@ class Partner(Base):
 			'name':self.name,
 			'handle':self.handle,
 			'bio':self.bio,
-			'uid':self.uid,
+			#'uid':self.uid,
 			'image':self.image,
 			'instructions':self.instructions,
 			'friend':self.friend,
-			'direct_chat':self.direct_chat.serialize() if self.direct_chat else None
+			'direct_chat': {'ref':'chats','key':self.direct_chat.uid} if self.direct_chat else None
+			#'direct_chat':self.direct_chat.serialize() if self.direct_chat else None
 		}
 	def add_contact(self):
 		self.permanent = True
@@ -131,8 +132,8 @@ class Protagonist:
 	uid = 0
 	handle = config['user']['handle']
 
-	def print_message(self,message):
-		print(f"{col[self.color](bold(self.name))}: {message}")
+	def print_message(cls,message):
+		print(f"{col[cls.color](bold(cls.name))}: {message}")
 
 
 class Message(Base):
@@ -153,7 +154,7 @@ class Message(Base):
 		super().__init__(**data)
 
 	def get_author(self):
-		return self.author or Protagonist()
+		return self.author or Protagonist
 
 	def is_from_user(self):
 		return (self.author_handle is None)
@@ -165,8 +166,10 @@ class Message(Base):
 	def serialize(self):
 		return {
 			'uid': self.uid,
-			'author':self.get_author().handle,
-			'own':(self.author_handle is None),
+			#'author':self.get_author().handle,
+			'author': {'ref':'contacts','key':self.get_author().handle} if not self.is_from_user() else None,
+			'own':(self.get_author() is Protagonist),
+			'chat': {'ref':'chats','key':self.chat.uid},
 			'content':self.content or "",
 			'media_attached':self.media_attached,
 			'media_type':get_media_type(self.media_attached),
@@ -207,7 +210,7 @@ class Chat(Base):
 		m = Message()
 		m.chat = self
 		if author is Protagonist:
-			m.user = True
+			m.author = None
 		else:
 			m.author = author
 		m.content = content
@@ -305,11 +308,13 @@ class DirectChat(Chat):
 	def serialize_short(self):
 		return {
 			'uid':self.uid,
-			'partner':self.partner_handle,
-			'name':self.partner.name,
+			#'partner':self.partner.serialize(),
+			'partner': {'ref':'contacts','key':self.partner.handle},
+			#'partner':self.partner_handle,
+			#'name':self.partner.name,
 			'groupchat':False,
-			'desc':self.partner.bio,
-			'image':self.partner.image,
+			#'desc':self.partner.bio,
+			#'image':self.partner.image,
 			'latest_message':self.get_messages()[-1].serialize() if self.messages else None
 		}
 
@@ -383,7 +388,9 @@ class GroupChat(Chat):
 			'groupchat':True,
 			'desc':self.desc,
 			'image':self.image,
-			'partners':{p.handle:p.name for p in self.members},
+			'partners': [{'ref':'contacts','key':p.handle} for p in self.members],
+			#'partners':[p.serialize() for p in self.partners],
+			#'partners':{p.handle:p.name for p in self.members},
 			'latest_message':self.get_messages()[-1].serialize() if self.messages else None
 		}
 

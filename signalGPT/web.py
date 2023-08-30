@@ -4,7 +4,7 @@ from importlib import resources
 import os
 
 from .classes import Session, Partner, Chat, GroupChat, Message, generate_uid
-
+from . import config
 
 @get("/<path>")
 def index(path):
@@ -18,8 +18,18 @@ def media(path):
 @get("/api/userinfo")
 def api_get_userinfo():
 
-	from . import config
+
 	return config['user']
+
+
+@get("/api/data")
+def api_get_data():
+	with Session() as session:
+		return {
+			'chats': {chat.uid: chat.serialize_short() for chat in session.query(Chat).all() },
+			'contacts':{ partner.handle: partner.serialize() for partner in session.query(Partner).all() },
+			'userinfo': config['user']
+		}
 
 @get("/api/contacts")
 def api_get_contacts():

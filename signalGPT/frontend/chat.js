@@ -135,12 +135,9 @@ var converter = new showdown.Converter();
 window.appdata = {
 	chats:{},
 	contacts:{},
-	selected_chat:{},
+	selected_chat:null,
 	selectChat(uid){
-	    for (var element of document.getElementsByClassName("contact")) {
-	    	element.classList.remove('selected');
-	    }
-			document.getElementById("chat_" + uid).classList.add('selected');
+
 
 			if (this.chats[uid].full_loaded) {
 				this.selected_chat = this.chats[uid];
@@ -151,35 +148,58 @@ window.appdata = {
 				});
 			}
 			else {
-				fetch('/api/chat/' + uid)
-		    	.then(response=>response.json())
+				this.getChat(uid)
 		    	.then(result=>{
-		    		console.log(result);
-						this.chats[uid] = result;
-						this.chats[uid].full_loaded = true;
 		    		this.selectChat(uid);
 		    	});
 			}
 
 	},
 	async getData(){
-		await fetch('/api/contacts')
+		await fetch("/api/data")
 			.then(response=>response.json())
 			.then(result=>{
-				this.contacts = result;
-			});
-		await fetch('/api/conversations')
-			.then(response=>response.json())
-			.then(result=>{
-				this.chats = result;
-			});
-		await fetch('/api/userinfo')
-			.then(response=>response.json())
-			.then(result=>{
-				this.userinfo = result;
+				this.chats = result.chats;
+				this.contacts = result.contacts;
+				this.userinfo = result.userinfo;
+				this.resolveReferences(this.chats);
+				this.resolveReferences(this.contacts);
 			});
 
 	},
+	resolveReferences(obj) {
+
+		for (var key of Object.keys(obj)) {
+			if (typeof obj[key] === 'object' && obj[key] !== null) {
+				if (obj[key].hasOwnProperty("ref")) {
+					var ref_type = obj[key]['ref'];
+					var ref_key = obj[key]['key'];
+					var entity = this[ref_type][ref_key];
+
+					if (!entity) {
+						var funcs = {
+							chats:this.getChat,
+							contacts:this.getContact
+						}
+						console.log('missing reference:',ref_type,ref_key);
+						funcs[ref_type].bind(this)(ref_key)
+							.then(result=>{
+								obj[key] = this[ref_type][ref_key];
+							});
+
+					}
+					else {
+						obj[key] = entity;
+					}
+
+				}
+				else {
+					this.resolveReferences(obj[key]);
+				}
+			}
+		}
+	},
+
 	sendMessage(content,media) {
 
 		var chatwindow = document.getElementById('chat');
@@ -217,6 +237,7 @@ window.appdata = {
 			.then(result=>{
 				for (var msg of result.messages) {
 					this.selected_chat.messages.push(msg);
+					this.resolveReferences(msg);
 					this.chats[this.selected_chat.uid].latest_message = msg;
 					if (atEnd) {
 						this.$nextTick(()=>{
@@ -235,7 +256,7 @@ window.appdata = {
 			.then(response=>response.json())
 			.then(result=>{
 				this.contacts[result.handle] = result;
-				this.chats[result.direct_chat.uid] = result.direct_chat;
+				this.resolveReferences(result);
 			})
 	},
 	keyboardInput(event) {
@@ -282,6 +303,18 @@ window.appdata = {
 
 
 	/// CHATS
+	getChat(uid) {
+		return fetch("/api/chat/" + uid)
+			.then(response=>response.json())
+			.then(result=>{
+				console.log(result);
+				this.chats[result.uid] = this.chats[result.uid] ?? {};
+				Object.assign(this.chats[result.uid],result);
+				this.chats[result.uid].full_loaded = true;
+				this.resolveReferences(this.chats[uid]);
+
+			})
+	},
 	postGroup() {
 		post("/api/groupchat",{})
 			.then(response=>response.json())
@@ -294,7 +327,7 @@ window.appdata = {
 		patch("/api/chat",data)
 			.then(response=>response.json())
 			.then(result=>{
-				this.chats[result.uid] = result;
+				Object.assign(this.chats[result.uid],result);
 				this.selected_chat = result;
 			})
 	},
@@ -319,9 +352,7 @@ window.appdata = {
 						this.patchChat({uid:uid,image:result.path})
 					}
 					else {
-						this.patchContact({handle:this.chats[uid].partner,image:result.path})
-						// locally adjust chat to have same img
-						this.chats[uid].image = result.path;
+						this.patchContact({handle:this.chats[uid].partner.handle,image:result.path});
 					}
 
 		    })
@@ -366,7 +397,7 @@ window.appdata = {
 				console.log("wtf man");
 			}
 			else {
-				this.patchContact({handle:this.selected_chat.partner,bio:textinput.textContent});
+				this.patchContact({handle:this.selected_chat.partner.handle,bio:textinput.textContent});
 			}
 
 		}
@@ -407,13 +438,7 @@ window.appdata = {
 		patch("/api/contact",data)
 			.then(response=>response.json())
 			.then(result=>{
-				this.contacts[data.handle] = result;
-				for (var chat of Object.values(this.chats)) {
-					if (chat.partner == data.handle) {
-						chat.name = result.name;
-						chat.desc = result.bio;
-					}
-				}
+				Object.assign(this.contacts[data.handle],result);
 			})
 	},
 	addFriend(handle){
@@ -449,6 +474,7 @@ window.appdata = {
 		patch("/api/message",data)
 			.then(response=>response.json())
 			.then(result=>{
+				this.resolveReferences(result);
 				for (var chat of Object.values(this.chats)) {
 					var i = chat.messages?.length;
 					while(i--) {
@@ -545,15 +571,16 @@ window.appdata = {
 					var msg = chat.messages[i];
 					var participants = [this.userinfo.handle];
 					if (chat.groupchat) {
-						participants = participants.concat(Object.keys(chat.partners))
+						participants = participants.concat(chat.partners.map(x=>x.handle));
 					}
 					else {
-						participants.push(chat.partner);
+						participants.push(chat.partner.handle);
 					}
 					console.log(participants);
 					var j = participants.length;
 					var pickNext = false;
-					while (j-- || true) {
+					var overflows_allowed = 1;
+					while (j-- || overflows_allowed--) {
 						if (j<0) {
 							j = participants.length-1;
 						}
@@ -567,7 +594,7 @@ window.appdata = {
 
 							break;
 						}
-						if (msg.author == participants[j]) {
+						if ((msg.author?.handle || this.userinfo.handle) == participants[j]) {
 							pickNext = true;
 						}
 					}
@@ -584,7 +611,7 @@ window.appdata = {
 			.then(result=>{
 				delete this.chats[chat_uid];
 				if (this.selected_chat.uid == chat_uid) {
-					this.selected_chat = {};
+					this.selected_chat = null;
 				}
 			})
 	},
