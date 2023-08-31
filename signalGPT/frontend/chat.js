@@ -249,6 +249,27 @@ window.appdata = {
 
 			});
 	},
+	startEdit(event) {
+		var element = document.getElementById(event.currentTarget.dataset.edittarget);
+		element.contentEditable = true;
+		element.classList.add('editing');
+		element.focus();
+
+	},
+	finishEdit(event,func) {
+		var element = event.currentTarget;
+		if (element.classList.contains('editing')) {
+			element.classList.remove('editing');
+			element.contentEditable = false;
+			if (element.dataset.nohtml) {
+				element.innerHTML = element.textContent;
+			}
+			var key = element.dataset.entitykey;
+			console.log('calling',func,'with',element.innerHTML,key);
+			func.bind(this)(key,element.innerHTML);
+		}
+
+	},
 	findNewContact(searchstr) {
 		post("/api/contact",{
 			desc:searchstr
@@ -359,55 +380,23 @@ window.appdata = {
 		}
 
 	},
-	editChatName() {
-		var textinput = document.getElementById('chat_name');
-		textinput.contentEditable = true;
-		textinput.classList.add('editing');
-		textinput.focus();
-	},
-	editChatNameSend() {
-		var textinput = document.getElementById('chat_name');
-		if (textinput.classList.contains('editing')) {
-			textinput.classList.remove('editing');
-			textinput.contentEditable = false;
-			textinput.innerHTML = textinput.textContent;
-			if (this.selected_chat.groupchat) {
-				this.patchChat({uid:this.selected_chat.uid,name:textinput.textContent});
-			}
-			else {
-				this.patchContact({handle:this.selected_chat.partner,name:textinput.textContent});
-			}
-
+	alterChatName(uid,name) {
+		var chat = this.chats[uid];
+		if (chat.groupchat) {
+			this.patchChat({uid:uid,name:name});
 		}
-	},
-	// these are technically both contact edits, but... eh, you understand
-	editChatDesc() {
-		var textinput = document.getElementById('chat_desc');
-		textinput.contentEditable = true;
-		textinput.classList.add('editing');
-		textinput.focus();
-	},
-	editChatDescSend() {
-		var textinput = document.getElementById('chat_desc');
-		if (textinput.classList.contains('editing')) {
-			textinput.classList.remove('editing');
-			textinput.contentEditable = false;
-			textinput.innerHTML = textinput.textContent;
-			if (this.selected_chat.groupchat) {
-				console.log("wtf man");
-			}
-			else {
-				this.patchContact({handle:this.selected_chat.partner.handle,bio:textinput.textContent});
-			}
-
+		else {
+			this.patchContact({handle:chat.partner.handle,name:name});
 		}
+
 	},
+
 
 
 	dragContact(event) {
 		var el = event.currentTarget;
 		var cid = el.dataset.chatid;
-		var partner = this.chats[cid].partner;
+		var partner = this.chats[cid].partner.handle;
 		event.dataTransfer.setData('text/plain',partner);
 	},
 	dragContactReceive(event) {
@@ -417,7 +406,6 @@ window.appdata = {
 			const el = event.currentTarget;
 			const cid = el.dataset.chatid;
 			const chat = this.chats[cid];
-			console.log(chat);
 			if (chat.groupchat) {
 				post("/api/add_chat_member",{
 					chat_uid: cid,
@@ -425,7 +413,8 @@ window.appdata = {
 				})
 					.then((response) => response.json())
 					.then((result=>{
-						chat.partners = result.partners;
+						Object.assign(chat,result);
+						this.resolveReferences(chat);
 					}))
 				//chat.partners[contact_handle] = this.contacts[contact_handle].name;
 			}
@@ -468,6 +457,10 @@ window.appdata = {
 
 			})
 	},
+	alterContactBio(handle,text) {
+		var contact = this.contacts[handle];
+		this.patchContact({handle:handle,bio:text});
+	},
 
 	// MESSAGES
 	patchMessage(data) {
@@ -487,21 +480,8 @@ window.appdata = {
 				}
 			})
 	},
-	editMessageSend(msg_uid){
-		var element = document.getElementById('message_' + msg_uid);
-		var textinput = element.getElementsByClassName('message_text')[0];
-		if (textinput.classList.contains('editing')) {
-			textinput.classList.remove('editing');
-			textinput.contentEditable = false;
-			this.patchMessage({uid:msg_uid,content:this.html_to_markdown(textinput.innerHTML)})
-		}
-	},
-	editMessage(msg_uid) {
-		var element = document.getElementById('message_' + msg_uid);
-		var textinput = element.getElementsByClassName('message_text')[0];
-		textinput.contentEditable = true;
-		textinput.classList.add('editing');
-		textinput.focus();
+	alterMessageText(uid,text){
+		this.patchMessage({uid:uid,content:this.html_to_markdown(text)});
 	},
 	deleteMessage(msg_uid) {
 		del("/api/message",{
