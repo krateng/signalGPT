@@ -1,24 +1,28 @@
 from bottle import get, post, route, delete, static_file, run, request
-patch = lambda path: route(path,method='PATCH')
+
 from importlib import resources
 import os
 
 from .classes import Session, Partner, Chat, GroupChat, Message, generate_uid
 from . import config
 
+
+def patch(path): return route(path, method='PATCH')
+
+
 @get("/<path>")
 def index(path):
 	with resources.files('signalGPT') / 'frontend' as staticfolder:
-		return static_file(path,root=staticfolder)
+		return static_file(path, root=staticfolder)
+
 
 @get("/media/<path:path>")
 def media(path):
-	return static_file(path,root="./media")
+	return static_file(path, root="./media")
+
 
 @get("/api/userinfo")
 def api_get_userinfo():
-
-
 	return config['user']
 
 
@@ -26,10 +30,11 @@ def api_get_userinfo():
 def api_get_data():
 	with Session() as session:
 		return {
-			'chats': {chat.uid: chat.serialize_short() for chat in session.query(Chat).all() },
-			'contacts':{ partner.handle: partner.serialize() for partner in session.query(Partner).all() },
+			'chats': { chat.uid: chat.serialize_short() for chat in session.query(Chat).all() },
+			'contacts': { partner.handle: partner.serialize() for partner in session.query(Partner).all() },
 			'userinfo': config['user']
 		}
+
 
 @get("/api/contacts")
 def api_get_contacts():
@@ -39,6 +44,7 @@ def api_get_contacts():
 			for partner in session.query(Partner).all()
 		}
 
+
 @get("/api/conversations")
 def api_get_conversations():
 	with Session() as session:
@@ -47,51 +53,51 @@ def api_get_conversations():
 			for chat in session.query(Chat).all()
 		}
 
+
 @get("/api/chat/<uid>")
 def api_get_chat(uid):
 	with Session() as session:
-		return session.query(Chat).where(Chat.uid==uid).first().serialize()
+		return session.query(Chat).where(Chat.uid == uid).first().serialize()
 
 
 @post("/api/upload_media")
 def api_upload_media():
-	info = request.forms
 	file = request.files.get('file')
 	filedata = file.file.read()
 	fileext = file.filename.split('.')[-1].lower()
 
 	name = generate_uid() + '.' + fileext
-	path = os.path.join('media',name)
-	with open(path,'wb') as fd:
+	path = os.path.join('media', name)
+	with open(path, 'wb') as fd:
 		fd.write(filedata)
 
 	return {
-		'path':'/' + path
+		'path': '/' + path
 	}
-
 
 
 @get("/api/get_message/<uid>")
 def api_get_message(uid):
 	with Session() as session:
-		chat = session.query(Chat).where(Chat.uid==uid).first()
+		chat = session.query(Chat).where(Chat.uid == uid).first()
 		msgs = list(chat.get_response())
 		for msg in msgs:
 			session.add(msg)
 		session.commit()
-		return {'messages':[m.serialize() for m in msgs]}
+		return {'messages': [m.serialize() for m in msgs]}
 
 
 @post("/api/send_message")
 def api_send_message():
 	info = request.json
 	with Session() as session:
-		chat = session.query(Chat).where(Chat.uid==info['chat_id']).first()
-		m = chat.send_message(content=info['content'].strip(),media_attached=info.get('media'))
+		chat = session.query(Chat).where(Chat.uid == info['chat_id']).first()
+		m = chat.send_message(content=info['content'].strip(), media_attached=info.get('media'))
 		# use client timestamp? or just register now?
 		session.add(m)
 		session.commit()
 		return m.serialize()
+
 
 @post("/api/send_message_media")
 def api_send_message_message():
@@ -100,8 +106,8 @@ def api_send_message_message():
 	filedata = file.file.read()
 	fileext = file.filename.split('.')[-1].lower()
 	with Session() as session:
-		chat = session.query(Chat).where(Chat.uid==info['chat_id']).first()
-		m = chat.send_message(add_media={'extension':fileext,'rawdata':filedata})
+		chat = session.query(Chat).where(Chat.uid == info['chat_id']).first()
+		m = chat.send_message(add_media={'extension': fileext, 'rawdata': filedata})
 		session.add(m)
 		session.commit()
 		return m.serialize()
@@ -111,7 +117,7 @@ def api_send_message_message():
 def api_regenerate_message():
 	info = request.json
 	with Session() as session:
-		msg = session.query(Message).where(Message.uid==info['uid']).first()
+		msg = session.query(Message).where(Message.uid == info['uid']).first()
 		chat = msg.chat
 		msgs = list(chat.get_response(replace=msg))
 		session.commit()
@@ -129,32 +135,37 @@ def api_post_contact():
 		session.add(chat)
 		session.commit()
 		return char.serialize()
+
+
 @patch("/api/contact")
 def api_patch_contact():
 	info = request.json
 	with Session() as session:
-		contact = session.query(Partner).where(Partner.handle==info.pop('handle')).first()
-		dir_chat = info.pop('start_chat',False)
+		contact = session.query(Partner).where(Partner.handle == info.pop('handle')).first()
+		dir_chat = info.pop('start_chat', False)
 		contact.__init__(**info)
 		if dir_chat:
 			contact.start_direct_chat(session)
 		session.commit()
 		return contact.serialize()
 
+
 # MESSAGE
 @patch("/api/message")
 def api_patch_message():
 	info = request.json
 	with Session() as session:
-		message = session.query(Message).where(Message.uid==info.pop('uid')).first()
+		message = session.query(Message).where(Message.uid == info.pop('uid')).first()
 		message.__init__(**info)
 		session.commit()
 		return message.serialize()
+
+
 @delete("/api/message")
 def api_delete_message():
 	info = request.json
 	with Session() as session:
-		msg = session.query(Message).where(Message.uid==info.pop('uid')).first()
+		msg = session.query(Message).where(Message.uid == info.pop('uid')).first()
 		session.delete(msg)
 		session.commit()
 
@@ -168,29 +179,35 @@ def api_post_groupchat():
 		session.add(c)
 		session.commit()
 		return c.serialize()
+
+
 @patch("/api/chat")
 def api_patch_chat():
 	info = request.json
 	with Session() as session:
-		chat = session.query(Chat).where(Chat.uid==info.pop('uid')).first()
+		chat = session.query(Chat).where(Chat.uid == info.pop('uid')).first()
 		chat.__init__(**info)
 		session.commit()
 		return chat.serialize()
+
+
 @delete("/api/chat")
 def api_delete_chat():
 	info = request.json
 	with Session() as session:
-		chat = session.query(Chat).where(Chat.uid==info.pop('uid')).first()
+		chat = session.query(Chat).where(Chat.uid == info.pop('uid')).first()
 		for msg in chat.messages:
 			session.delete(msg)
 		session.delete(chat)
 		session.commit()
+
+
 @post("/api/add_chat_member")
 def api_add_chat_member():
 	info = request.json
 	with Session() as session:
-		chat = session.query(Chat).where(Chat.uid==info.pop('chat_uid')).first()
-		person = session.query(Partner).where(Partner.handle==info.pop('partner_handle')).first()
+		chat = session.query(Chat).where(Chat.uid == info.pop('chat_uid')).first()
+		person = session.query(Partner).where(Partner.handle == info.pop('partner_handle')).first()
 		chat.add_person(person)
 		session.commit()
 		return chat.serialize()
