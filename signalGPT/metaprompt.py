@@ -64,7 +64,10 @@ def create_character_image(prompt,keywords):
 		print("Getting image from anydream...")
 		print("Prompt: " + used_prompt)
 
-		r = requests.post("https://www.anydream.xyz/api/a1_request",json={
+		session = requests.Session()
+		session.cookies.update(cookies)
+
+		r1 = session.post("https://www.anydream.xyz/api/a1_request",json={
 			'model': "ReAL",
 			'endpoint': "txt2img",
 			'params':{
@@ -79,12 +82,13 @@ def create_character_image(prompt,keywords):
 				'steps': 25
 			},
 			'aspectRatio': "square"
-		},cookies=cookies).json()
+		})
+		j = r1.json()
 
-		if req_id := r.get('requestId'):
+		if req_id := j.get('requestId'):
 			pass
 		else:
-			print(r)
+			print(j)
 			print()
 			return ""
 
@@ -93,19 +97,59 @@ def create_character_image(prompt,keywords):
 
 			time.sleep(2)
 
-			r = requests.post("https://www.anydream.xyz/api/a1_request/check",json={
+			r2 = session.post("https://www.anydream.xyz/api/a1_request/check",json={
 				'requestId': req_id
-			},cookies=cookies).json()
+			})
+			j = r2.json()
 
-			if status := r.get('status'):
+			if status := j.get('status'):
 				if status == 'success':
 					print()
-					return r['images'][0]['imgUrl']
+					return j['images'][0]['imgUrl']
 			else:
-				print(r)
+				print(j)
+				with open("debug.json",'w') as fd:
+					json.dump({
+						'headers':dict(r1.headers),
+						'cookies':dict(r1.cookies),
+						'json_content':r1.json()
+					},fd,indent=4)
 				print()
 				return ""
 
 	else:
 		print()
 		return ""
+
+
+pick_responder_prompt = '''
+I'm going to give you a chat log. Please pick who you think would be the next responder in the chat based on context.
+Return your result in fully valid json with the keys:
+* responder: The exact name of the responder.
+* confidence: a percentage value from 0-100 (as integer, not including the % symbol) how certain you are that this will be the next responder
+* reason: a short explanation why you made this choice
+
+Please include nothing else but this json in your response.
+'''
+
+def guess_next_responder(msgs,people):
+
+	ppl = {p.name:p for p in people}
+
+	messages = [
+		{"content":pick_responder_prompt,"role":"system"},
+		{"role":"user","content":"The users are: " + ', '.join(ppl.keys())},
+		{"role":"user","content":"Chatlog:\n\n" + '\n'.join(msg.get_author().name + ": " + msg.display_for_textonly_model() for msg in msgs[-50:])}
+	]
+
+	print("Guessing next responder...")
+
+	completion = openai.ChatCompletion.create(model=config['model'],messages=messages)
+	message = completion['choices'][0]['message']
+	info = json.loads(message['content'])
+
+
+	print(f"Picked {info['responder']} ({info['reason']})")
+	print()
+
+	return ppl[info['responder']]

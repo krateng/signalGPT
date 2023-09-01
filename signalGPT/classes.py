@@ -7,15 +7,17 @@ import time
 from datetime import datetime, timezone
 from doreah.io import col
 import emoji
+import enum
+import math
 
 
-from sqlalchemy import create_engine, Table, Column, Integer, String, Boolean, MetaData, ForeignKey, exc, func
+from sqlalchemy import create_engine, Table, Column, Integer, String, Boolean, Enum, MetaData, ForeignKey, exc, func
 from sqlalchemy.orm import sessionmaker, relationship
 from sqlalchemy.ext.declarative import declarative_base
 
 
 from .__init__ import config
-from .metaprompt import create_character_info, create_character_image
+from .metaprompt import create_character_info, create_character_image, guess_next_responder
 
 
 
@@ -135,6 +137,12 @@ class Protagonist:
 	def print_message(cls,message):
 		print(f"{col[cls.color](bold(cls.name))}: {message}")
 
+class MessageType(enum.Enum):
+	Text = 1
+	Image = 2
+	Video = 3
+	MetaJoin = 10
+	MetaLeave = 11
 
 class Message(Base):
 	__tablename__ = 'messages'
@@ -145,6 +153,7 @@ class Message(Base):
 	author_handle = Column(String,ForeignKey('people.handle'))
 	author = relationship('Partner',backref='messages')
 	timestamp = Column(Integer)
+	message_type = Column(Enum(MessageType),default=MessageType.Text)
 	content = Column(String,default="")
 	media_attached = Column(String)
 
@@ -171,6 +180,7 @@ class Message(Base):
 			'own':(self.get_author() is Protagonist),
 			'chat': {'ref':'chats','key':self.chat.uid},
 			'content':self.content or "",
+			'message_type':self.message_type.name if self.message_type else None,
 			'media_attached':self.media_attached,
 			'media_type':get_media_type(self.media_attached),
 			'timestamp':self.timestamp,
@@ -178,10 +188,18 @@ class Message(Base):
 		}
 
 	def display_for_textonly_model(self):
-		txt = self.content or ""
-		if self.media_attached:
-			txt += " [Media attached]"
-		return txt
+		if self.message_type in [None,MessageType.Text]:
+			return self.content
+		elif self.message_type in [MessageType.Image, MessageType.Video]:
+			return f"[{self.message_type.name} attached]"
+		elif self.message_type == MessageType.MetaJoin:
+			return "[has been added to chat]"
+		elif self.message_type == MessageType.MetaLeave:
+			return "[has left the chat]"
+		else:
+			print("WEIRD MESSAGE")
+			print(self)
+			return ""
 
 
 class Chat(Base):
@@ -318,29 +336,40 @@ class DirectChat(Chat):
 			'latest_message':self.get_messages()[-1].serialize() if self.messages else None
 		}
 
-	def get_openai_msg_list(self,upto=None):
-		messages = self.get_messages_upto(upto)
+	def get_openai_messages(self,upto=None):
+		messages = self.get_messages(stop_before=upto)
 
-		return [
-			{
-				'role':"system",
-				'content':self.partner.get_prompt()
-			},
-			{
-				'role':"system",
-				'content':self.style_prompt
-			},
-			{
-				'role':"system",
-				'content':self.userinfo_prompt.format(desc=config['user']['description'])
-			}
-		] + [
-			{
+		yield {
+			'role':"system",
+			'content':self.partner.get_prompt()
+		}
+		yield {
+			'role':"system",
+			'content':self.style_prompt
+		}
+		yield {
+			'role':"system",
+			'content':self.userinfo_prompt.format(desc=config['user']['description'])
+		}
+
+		lasttimestamp = math.inf
+		for msg in messages:
+			if (msg.timestamp - lasttimestamp) > (config['ai_prompting_config']['message_gap_info_min_hours']*3600):
+				yield {
+					'role':"system",
+					'content':"{hours} hours pass...".format(hours=(msg.timestamp - lasttimestamp)//3600)
+				}
+			lasttimestamp = msg.timestamp
+
+			yield {
 				'role':"user" if (msg.is_from_user()) else "assistant",
 				'content': msg.display_for_textonly_model()
 			}
-			for msg in messages
-		]
+
+
+
+	def get_openai_msg_list(self,upto=None):
+		return list(self.get_openai_messages(upto=upto))
 
 
 
@@ -377,7 +406,7 @@ class GroupChat(Chat):
 
 
 	style_prompt_multiple = "The messages you receive will contain the speaker at the start. Please factor this in to write your response, but do not prefix your own response with your name. Don't ever respond for someone else, even if they are being specifically addressed. You do not need to address every single point from every message, just keep a natural conversation flow."
-	style_reminder_prompt = "Make sure you answer as {character_name}, not as another character in the chat!!!"
+	style_reminder_prompt = "Make sure you answer as {character_name}, not as another character in the chat! Do not prefix your response with your name."
 
 
 
@@ -395,38 +424,64 @@ class GroupChat(Chat):
 		}
 
 
+	def get_openai_messages(self,partner,upto=None):
+		messages = self.get_messages(stop_before=upto)
 
-	def get_openai_msg_list(self,partner,upto=None):
-		messages = self.get_messages_upto(upto)
+		yield {
+			'role':"system",
+			'content':partner.get_prompt()
+		}
+		yield {
+			'role':"system",
+			'content':self.style_prompt + (self.style_prompt_multiple if len(self.members) > 1 else "")
+		}
+		yield {
+			'role':"system",
+			'content':self.userinfo_prompt.format(desc=config['user']['description'])
+		}
+		yield {
+			'role':"system",
+			'content': f"Group Chat Name: {self.name}\nGroup Chat Members: {', '.join(p.name for p in self.members + [Protagonist])}"
+		}
+		yield {
+			'role':"user",
+			'content':f"[{Protagonist.name} has created the chat]"
+		}
 
-		return [
-			{
-				'role':"system",
-				'content':partner.get_prompt()
-			},
-			{
-				'role':"system",
-				'content':self.style_prompt + (self.style_prompt_multiple if len(self.members) > 1 else "")
-			},
-			{
-				'role':"system",
-				'content':self.userinfo_prompt.format(desc=config['user']['description'])
-			}
-		] + [
-			{
-				'role':"user" if (msg.get_author() != partner) else "assistant",
-				'content': (msg.get_author().name + ": " + msg.display_for_textonly_model()) if ((msg.get_author() != partner) and len(self.members) > 1) else msg.display_for_textonly_model()
-			}
-			for msg in messages
-		] + ([
-			{
+		lasttimestamp = math.inf
+		for msg in messages:
+			if (msg.timestamp - lasttimestamp) > (config['ai_prompting_config']['message_gap_info_min_hours']*3600):
+				yield {
+					'role':"system",
+					'content':"{hours} hours pass...".format(hours=(msg.timestamp - lasttimestamp)//3600)
+				}
+			lasttimestamp = msg.timestamp
+
+			if (len(self.members) > 1) and (msg.get_author() != partner):
+				yield {
+					'role':"user" if (msg.get_author() != partner) else "assistant",
+					'content': msg.get_author().name + ": " + msg.display_for_textonly_model()
+				}
+			else:
+				yield {
+					'role':"user" if (msg.get_author() != partner) else "assistant",
+					'content': msg.display_for_textonly_model()
+				}
+
+		if len(self.members) > 1:
+			yield {
 				'role':"system",
 				'content': self.style_reminder_prompt.format(character_name=partner.name)
 			}
-		] if len(self.members) > 1 else [])
 
+	def get_openai_msg_list(self,partner,upto=None):
+		return list(self.get_openai_messages(partner=partner,upto=upto))
 
 	def pick_next_responder(self):
+
+		responder = guess_next_responder(self.get_messages(),self.members)
+		return responder
+
 		chances = {p:100 for p in self.members}
 		mentioned = set()
 		for msg in self.messages[-7:]:
@@ -473,7 +528,14 @@ class GroupChat(Chat):
 
 
 	def add_person(self,person):
-		self.members.append(person)
+		if person not in self.members:
+			self.members.append(person)
+			self.messages.append(Message(
+				message_type = MessageType.MetaJoin,
+				author = person,
+				chat = self,
+				timestamp = int(datetime.utcnow().replace(tzinfo=timezone.utc).timestamp())
+			))
 
 
 

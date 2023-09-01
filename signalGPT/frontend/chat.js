@@ -349,7 +349,8 @@ window.appdata = {
 			.then(response=>response.json())
 			.then(result=>{
 				Object.assign(this.chats[result.uid],result);
-				this.selected_chat = result;
+				this.resolveReferences(this.chats[result.uid]);
+				this.selected_chat = this.chats[result.uid];
 			})
 	},
 	changeChatPicture(event) {
