@@ -1,10 +1,12 @@
 import openai
 import json
 import requests
+import random
 
 import browser_cookie3
 
 from .__init__ import config
+from .helper import save_debug_file
 
 
 create_char_message = '''
@@ -34,13 +36,14 @@ def create_character_info(notes):
 
 	messages = [{"content":create_char_message,"role":"system"},{"role":"user","content":notes}]
 
-	print("Generating character...")
-	print("Prompt: " + notes)
-	print()
+
 
 	completion = openai.ChatCompletion.create(model=config['model_meta'],messages=messages)
 	message = completion['choices'][0]['message']
 	info = json.loads(message['content'])
+
+	save_debug_file('charactercreate',{'prompt':notes,'result':info})
+
 	return info
 
 
@@ -139,25 +142,30 @@ def guess_next_responder(msgs,people,user):
 
 	messages = [
 		{"content":pick_responder_prompt,"role":"system"},
-		{"role":"user","content":"The users are: " + ', '.join(ppl.keys()) + ". ONLY PICK FROM THESE USERS!"},
+		{"role":"user","content":"The users are: " + ', '.join(ppl.keys())},
 		{"role":"user","content":"Chatlog:\n\n" + '\n'.join(msg.get_author().name + ": " + msg.display_for_textonly_model() for msg in msgs[-30:])},
-		{"role":"user","content":f"Please only pick from the members mentioned, {user.name} is not a valid pick!"}
+		{"role":"user","content":f"Please only pick one of {', '.join(ppl.keys())}. DO NOT PICK {user.name}!"}
 	]
 
 	#from pprint import pprint
 	#pprint(messages)
 
-	print("Guessing next responder...")
-
 	completion = openai.ChatCompletion.create(model=config['model_meta'],messages=messages)
 	message = completion['choices'][0]['message']
-	info = json.loads(message['content'])
+	try:
+		info = json.loads(message['content'])
+	except:
+		print("Invalid JSON response")
+		save_debug_file('responderpick',{'messages':messages,'raw_result':message['content']})
+		return None
 
 
-	print(f"Picked {info['responder']} ({info['reason']})")
-	print()
+	save_debug_file('responderpick',{'messages':messages,'result':info})
 
-	return ppl[info['responder']]
+	if info['responder'] in ppl:
+		return ppl[info['responder']]
+	else:
+		return None
 
 
 summarize_prompt = '''
@@ -186,7 +194,8 @@ Begin your response with "During the chat so far, ..."
 '''
 
 def summarize_chat(msgs,perspective=None,external=False):
-	completion = openai.ChatCompletion.create(model=config['model_meta'],messages=[
+
+	messages = [
 		{
 			'role':'user',
 			'content':msg.get_author().name + ": " + msg.display_for_textonly_model()
@@ -197,7 +206,13 @@ def summarize_chat(msgs,perspective=None,external=False):
 			'role':'user',
 			'content':summarize_prompt + (summarize_prompt_directed.format(partner=perspective) if perspective else "") + (summarize_prompt_external if external else summarize_prompt_internal)
 		}
-	])
+	]
+
+
+	completion = openai.ChatCompletion.create(model=config['model_meta'],messages=messages)
 	msg = completion['choices'][0]['message']
 	content = msg['content']
+
+	save_debug_file('summarize',{'messages':messages,'result':content})
+
 	return content

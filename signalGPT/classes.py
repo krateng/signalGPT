@@ -20,6 +20,7 @@ from sqlalchemy.ext.declarative import declarative_base
 
 from .__init__ import config
 from .metaprompt import create_character_info, create_character_image, guess_next_responder, summarize_chat
+from .helper import save_debug_file
 
 
 
@@ -248,11 +249,11 @@ class Chat(Base):
 
 
 	def add_message(self,author=None,timestamp=None,**keys):
-		if msgtype := keys.pop('msgtype'):
+		if msgt := keys.pop('msgtype',None):
 			keys['message_type'] = {
 				'image':MessageType.Image,
 				'video':MessageType.Video
-			}[msgtype]
+			}[msgt]
 		m = Message(**keys)
 		m.chat = self
 		if author is Protagonist:
@@ -380,9 +381,7 @@ class DirectChat(Chat):
 		result = list(self.get_openai_messages(upto=upto))
 		#from pprint import pprint
 		#pprint(result)
-		os.makedirs('debug',exist_ok=True)
-		with open('debug/lastrequest.json','w') as fd:
-			json.dump(result,fd,indent=4)
+		save_debug_file('messagerequest',result)
 		return result
 
 
@@ -497,37 +496,37 @@ class GroupChat(Chat):
 		result = list(self.get_openai_messages(partner=partner,upto=upto))
 		#from pprint import pprint
 		#pprint(result)
-		os.makedirs('debug',exist_ok=True)
-		with open('debug/lastrequest.json','w') as fd:
-			json.dump(result,fd,indent=4)
+		save_debug_file('messagerequest',result)
 		return result
 
 
 	def pick_next_responder(self):
 
 		responder = guess_next_responder(self.get_messages(),self.members,user=Protagonist)
-		return responder
 
-		chances = {p:100 for p in self.members}
-		mentioned = set()
-		for msg in self.messages[-7:]:
-			for p in self.members:
-				if f"@{p.handle}" in msg.content:
-					# person was mentioned
-					mentioned.add(p)
-				elif p is msg.author:
-					# person responded after mention
-					mentioned.discard(p)
+		if not responder:
+			# Fallback
+			chances = {p:100 for p in self.members}
+			mentioned = set()
+			for msg in self.messages[-7:]:
+				for p in self.members:
+					if f"@{p.handle}" in msg.content:
+						# person was mentioned
+						mentioned.add(p)
+					elif p is msg.author:
+						# person responded after mention
+						mentioned.discard(p)
 
 
-		for index,msg in enumerate(reversed(self.messages[-7:])):
-			# last responder never responds, going further back the penalty is reduced
-			if msg.author:
-				chances[msg.author] *= (index / 10)
-		for p in mentioned:
-			chances[p] += (200 * len(chances))
+			for index,msg in enumerate(reversed(self.messages[-7:])):
+				# last responder never responds, going further back the penalty is reduced
+				if msg.author:
+					chances[msg.author] *= (index / 10)
+			for p in mentioned:
+				chances[p] += (200 * len(chances))
 
-		responder = random.choices(list(chances.keys()),weights=chances.values(),k=1)[0]
+			responder = random.choices(list(chances.keys()),weights=chances.values(),k=1)[0]
+
 		return responder
 
 	def get_response(self,replace=None):
