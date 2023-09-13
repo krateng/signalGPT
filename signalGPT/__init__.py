@@ -12,6 +12,7 @@ except FileNotFoundError:
         config = {
             'apikey': None,
             'model': 'gpt-3.5-turbo-16k',
+			'model_meta': 'gpt-4',
             'user': {
                 'name': 'Anon',
                 'handle': 'anon',
@@ -20,7 +21,7 @@ except FileNotFoundError:
             },
             'auth': {
                 'anydream': {
-                    'cookie': None
+                    'import': False
                 }
             }
         }

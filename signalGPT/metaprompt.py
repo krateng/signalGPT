@@ -38,7 +38,7 @@ def create_character_info(notes):
 	print("Prompt: " + notes)
 	print()
 
-	completion = openai.ChatCompletion.create(model=config['model'],messages=messages)
+	completion = openai.ChatCompletion.create(model=config['model_meta'],messages=messages)
 	message = completion['choices'][0]['message']
 	info = json.loads(message['content'])
 	return info
@@ -50,11 +50,12 @@ def create_character_image(prompt,keywords):
 	]
 
 	# load cookies from file
-	cookies = config.get('auth',{}).get('anydream',{})
-
-	if not cookies:
+	authinfo = config.get('auth',{}).get('anydream',{})
+	if authinfo.get('import'):
 		cj = browser_cookie3.load(domain_name=".anydream.xyz")
-		cookies = {c.name:c.value for c in cj if "anydream" in c.domain}
+		cookies = {c.name:c.value for c in cj}
+	else:
+		cookies = {} #direct from file not supported for now
 
 	if cookies:
 
@@ -132,19 +133,23 @@ Return your result in fully valid json with the keys:
 Please include nothing else but this json in your response.
 '''
 
-def guess_next_responder(msgs,people):
+def guess_next_responder(msgs,people,user):
 
 	ppl = {p.name:p for p in people}
 
 	messages = [
 		{"content":pick_responder_prompt,"role":"system"},
-		{"role":"user","content":"The users are: " + ', '.join(ppl.keys())},
-		{"role":"user","content":"Chatlog:\n\n" + '\n'.join(msg.get_author().name + ": " + msg.display_for_textonly_model() for msg in msgs[-50:])}
+		{"role":"user","content":"The users are: " + ', '.join(ppl.keys()) + ". ONLY PICK FROM THESE USERS!"},
+		{"role":"user","content":"Chatlog:\n\n" + '\n'.join(msg.get_author().name + ": " + msg.display_for_textonly_model() for msg in msgs[-30:])},
+		{"role":"user","content":f"Please only pick from the members mentioned, {user.name} is not a valid pick!"}
 	]
+
+	#from pprint import pprint
+	#pprint(messages)
 
 	print("Guessing next responder...")
 
-	completion = openai.ChatCompletion.create(model=config['model'],messages=messages)
+	completion = openai.ChatCompletion.create(model=config['model_meta'],messages=messages)
 	message = completion['choices'][0]['message']
 	info = json.loads(message['content'])
 
@@ -153,3 +158,46 @@ def guess_next_responder(msgs,people):
 	print()
 
 	return ppl[info['responder']]
+
+
+summarize_prompt = '''
+Please analzye the above chat and what happened during it.
+Summarize important implications in terms of character development or changes in relationship dynamics.
+Do not include every single thing that happened. Do not describe all steps that lead to it, only the final outcomes.
+Do not list people acknowledging something or talking about something, only list final changes in their dynamics.
+Be very concise. Bullet points are sufficent.
+Do not add any meta information about your result.
+'''
+
+summarize_prompt_directed = '''
+Focus on changes that affect the character {partner.name}.
+Write your summary in the form of information bits for a chatbot who is supposed to act as {partner.name} and needs to be updated on their knowledge, behavious, character, relationships etc. based on this chat.
+Speak in second person to the chatbot {partner.name}.
+Do not give any general chatbot instructions, only tell them what new information they need to know based on this chat.
+Do not give advice or instructions. Simpy inform about relevant changes.
+'''
+
+summarize_prompt_external = '''
+Begin your response with "In another chat, ..."
+'''
+
+summarize_prompt_internal = '''
+Begin your response with "During the chat so far, ..."
+'''
+
+def summarize_chat(msgs,perspective=None,external=False):
+	completion = openai.ChatCompletion.create(model=config['model_meta'],messages=[
+		{
+			'role':'user',
+			'content':msg.get_author().name + ": " + msg.display_for_textonly_model()
+		}
+		for msg in msgs
+	] + [
+		{
+			'role':'user',
+			'content':summarize_prompt + (summarize_prompt_directed.format(partner=perspective) if perspective else "") + (summarize_prompt_external if external else summarize_prompt_internal)
+		}
+	])
+	msg = completion['choices'][0]['message']
+	content = msg['content']
+	return content

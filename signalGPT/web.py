@@ -3,7 +3,7 @@ from bottle import get, post, route, delete, static_file, run, request
 from importlib import resources
 import os
 
-from .classes import Session, Partner, Chat, GroupChat, Message, generate_uid
+from .classes import Session, Partner, Chat, GroupChat, Message, MessageType, Protagonist, generate_uid
 from . import config
 
 
@@ -92,7 +92,7 @@ def api_send_message():
 	info = request.json
 	with Session() as session:
 		chat = session.query(Chat).where(Chat.uid == info['chat_id']).first()
-		m = chat.send_message(content=info['content'].strip(), media_attached=info.get('media'))
+		m = chat.send_message(content=info['content'].strip(), media_attached=info.get('media'), msgtype=info.get('messagetype'))
 		# use client timestamp? or just register now?
 		session.add(m)
 		session.commit()
@@ -185,7 +185,11 @@ def api_post_groupchat():
 def api_patch_chat():
 	info = request.json
 	with Session() as session:
+
 		chat = session.query(Chat).where(Chat.uid == info.pop('uid')).first()
+		if 'name' in info and info['name'] != chat.name:
+			m = chat.add_message(message_type=MessageType.MetaRename,author=None,content=info['name'])
+			session.add(m)
 		chat.__init__(**info)
 		session.commit()
 		return chat.serialize()

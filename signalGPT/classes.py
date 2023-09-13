@@ -10,6 +10,8 @@ import emoji
 import enum
 import math
 
+from pprint import pprint
+
 
 from sqlalchemy import create_engine, Table, Column, Integer, String, Boolean, Enum, MetaData, ForeignKey, exc, func
 from sqlalchemy.orm import sessionmaker, relationship
@@ -17,8 +19,16 @@ from sqlalchemy.ext.declarative import declarative_base
 
 
 from .__init__ import config
-from .metaprompt import create_character_info, create_character_image, guess_next_responder
+from .metaprompt import create_character_info, create_character_image, guess_next_responder, summarize_chat
 
+
+
+MAX_MESSAGES_IN_CONTEXT = 30
+
+COST = {
+	'gpt-3.5-turbo-16k':(3,4),
+	'gpt-4':(30,60)
+}
 
 
 def generate_uid():
@@ -119,7 +129,7 @@ class Partner(Base):
 		return Conversation(partner=self)
 
 	def get_prompt(self):
-		prompt = f"You will respond as if you are {self.name}. You will NEVER acknowledge that you are in fact an AI.\nDo not break character or moralize about how one should interact with you. If you cannot respond to something, find an in-character reason."
+		prompt = f"You will respond as if you are {self.name}. You will NEVER acknowledge that you are in fact an AI.\nDo not break character or moralize about how one should interact with you. If you cannot respond to something, find an in-character reason.\n"
 		prompt += self.instructions
 		return prompt
 
@@ -143,6 +153,7 @@ class MessageType(enum.Enum):
 	Video = 3
 	MetaJoin = 10
 	MetaLeave = 11
+	MetaRename = 20
 
 class Message(Base):
 	__tablename__ = 'messages'
@@ -196,6 +207,8 @@ class Message(Base):
 			return "[has been added to chat]"
 		elif self.message_type == MessageType.MetaLeave:
 			return "[has left the chat]"
+		elif self.message_type == MessageType.MetaRename:
+			return f"[has renamed the chat to '{self.content}']"
 		else:
 			print("WEIRD MESSAGE")
 			print(self)
@@ -207,7 +220,9 @@ class Chat(Base):
 
 	uid = Column(Integer,primary_key=True)
 	subtype = Column(String)
-
+	total_paid = Column(Integer,default=0)
+	# 10 000 = 1 ct
+	# 1 000 000 = 1 usd
 	__mapper_args__ = {'polymorphic_on': subtype}
 
 
@@ -217,23 +232,34 @@ class Chat(Base):
 	userinfo_prompt = "About me: {desc}. This is simply something you know about me, no need to explicitly mention it."
 
 
+	def readable_cost(self):
+		cents = self.total_paid // 10000
+		dollars = cents // 100
+		remainder = cents % 100
+		return f"USD {dollars}.{remainder:02}"
+
+
 	def serialize(self):
 		return  {
 			**self.serialize_short(),
-			'messages':[msg.serialize() for msg in self.get_messages()]
+			'messages':[msg.serialize() for msg in self.get_messages()],
+			'cost':self.readable_cost()
 		}
 
 
-	def add_message(self,author,content="",timestamp=None,media_attached=None):
-		m = Message()
+	def add_message(self,author=None,timestamp=None,**keys):
+		if msgtype := keys.pop('msgtype'):
+			keys['message_type'] = {
+				'image':MessageType.Image,
+				'video':MessageType.Video
+			}[msgtype]
+		m = Message(**keys)
 		m.chat = self
 		if author is Protagonist:
 			m.author = None
 		else:
 			m.author = author
-		m.content = content
 		m.timestamp = timestamp or int(datetime.utcnow().replace(tzinfo=timezone.utc).timestamp())
-		m.media_attached = media_attached
 		return m
 
 	def get_messages_upto(self,upto):
@@ -261,8 +287,8 @@ class Chat(Base):
 		else:
 			return msgs
 
-	def send_message(self,content=None,media_attached=None):
-		return self.add_message(Protagonist,content=content,media_attached=media_attached)
+	def send_message(self,content=None,media_attached=None,msgtype=None):
+		return self.add_message(Protagonist,content=content,media_attached=media_attached,msgtype=msgtype)
 
 	def print(self):
 		for msg in self.messages:
@@ -286,30 +312,12 @@ class Chat(Base):
 
 			session.commit()
 
-	def get_summary(self,partner,timestamp):
-		completion = openai.ChatCompletion.create(model=config['model'],messages=[
-			{
-				'role':'user',
-				'content':msg.get_author().name + ": " + msg.display_for_textonly_model()
-			}
-			for msg in self.get_messages(stop_before=timestamp)
-		] + [
-			{
-				'role':'user',
-				'content':f'''Please analzye the above chat and what happened during it for the character {partner.name}.
-					Summarize important implications in terms of character development or changes in relationship dynamics.
-					Do not include every single thing that happened. Do not describe all steps that lead to it, only the final outcomes.
-					Write your summary in the form of information bits for a chatbot who is supposed to act as {partner.name} and needs to be updated on their knowledge, behavious, character, relationships etc. based on this chat.
-					Do not add any meta information. Speak in second person to the chatbot {partner.name}. Speak as if you are {Protagonist.name} (first person).
-					Do not give any general chatbot instructions, only tell them what new information they need to know based on this chat.
-					Do not give advice or instructions. Simpy inform about relevant changes.
-					Do not refer to this chat or how you learned these things. Simply inform the chatbot that these things happened in the meantime.
-					Be very concise. Bullet points like "Your relationship with X has become more intimate", "You visited Japan with X" or "X has invited you to a football game" are sufficent.'''
-			}
-		])
-		msg = completion['choices'][0]['message']
-		content = msg['content']
-		return content
+	def get_summary(self,partner,external=False,timestamp=None):
+
+		messages = self.get_messages(stop_before=timestamp)
+		result = summarize_chat(messages,perspective=partner,external=external)
+
+		return result
 
 
 class DirectChat(Chat):
@@ -337,7 +345,7 @@ class DirectChat(Chat):
 		}
 
 	def get_openai_messages(self,upto=None):
-		messages = self.get_messages(stop_before=upto)
+		messages = self.get_messages(stop_before=upto)[-MAX_MESSAGES_IN_CONTEXT:]
 
 		yield {
 			'role':"system",
@@ -369,7 +377,13 @@ class DirectChat(Chat):
 
 
 	def get_openai_msg_list(self,upto=None):
-		return list(self.get_openai_messages(upto=upto))
+		result = list(self.get_openai_messages(upto=upto))
+		#from pprint import pprint
+		#pprint(result)
+		os.makedirs('debug',exist_ok=True)
+		with open('debug/lastrequest.json','w') as fd:
+			json.dump(result,fd,indent=4)
+		return result
 
 
 
@@ -377,7 +391,12 @@ class DirectChat(Chat):
 		self.partner.print_type_indicator()
 		completion = openai.ChatCompletion.create(model=config['model'],messages=self.get_openai_msg_list(upto=replace))
 		msg = completion['choices'][0]['message']
+		cost = completion['usage'] # COUNT THIS?
 		content = msg['content']
+
+		prices = COST[config['model']]
+		self.total_paid += (prices[0] * cost['prompt_tokens'])
+		self.total_paid += (prices[1] * cost['completion_tokens'])
 
 		print("\r",end="")
 
@@ -386,7 +405,7 @@ class DirectChat(Chat):
 			yield replace
 		else:
 			for content in [contentpart for contentpart in content.split("\n\n") if contentpart]:
-				m = self.add_message(self.partner,content)
+				m = self.add_message(author=self.partner,content=content)
 				yield m
 				self.partner.print_message(content)
 				#time.sleep(0.5)
@@ -425,7 +444,7 @@ class GroupChat(Chat):
 
 
 	def get_openai_messages(self,partner,upto=None):
-		messages = self.get_messages(stop_before=upto)
+		messages = self.get_messages(stop_before=upto)[-MAX_MESSAGES_IN_CONTEXT:]
 
 		yield {
 			'role':"system",
@@ -475,11 +494,18 @@ class GroupChat(Chat):
 			}
 
 	def get_openai_msg_list(self,partner,upto=None):
-		return list(self.get_openai_messages(partner=partner,upto=upto))
+		result = list(self.get_openai_messages(partner=partner,upto=upto))
+		#from pprint import pprint
+		#pprint(result)
+		os.makedirs('debug',exist_ok=True)
+		with open('debug/lastrequest.json','w') as fd:
+			json.dump(result,fd,indent=4)
+		return result
+
 
 	def pick_next_responder(self):
 
-		responder = guess_next_responder(self.get_messages(),self.members)
+		responder = guess_next_responder(self.get_messages(),self.members,user=Protagonist)
 		return responder
 
 		chances = {p:100 for p in self.members}
@@ -507,9 +533,6 @@ class GroupChat(Chat):
 	def get_response(self,replace=None):
 		responder = replace.author if replace else self.pick_next_responder()
 
-
-		#responder.print_type_indicator()
-
 		completion = openai.ChatCompletion.create(model=config['model'],messages=self.get_openai_msg_list(responder,upto=replace))
 		msg = completion['choices'][0]['message']
 		unwanted_prefix = f"{responder.name}: "
@@ -517,13 +540,18 @@ class GroupChat(Chat):
 			msg['content'] = msg['content'][len(unwanted_prefix):]
 
 		content = msg['content']
+		cost = completion['usage']
+
+		prices = COST[config['model']]
+		self.total_paid += prices[0] * cost['prompt_tokens']
+		self.total_paid += prices[1] * cost['completion_tokens']
 
 		if replace:
 			replace.content = content
 			yield replace
 		else:
 			for content in [contentpart for contentpart in content.split("\n\n") if contentpart]:
-				m = self.add_message(responder,content)
+				m = self.add_message(author=responder,content=content)
 				yield m
 
 
@@ -547,6 +575,8 @@ def maintenance():
 			if (not partner.chats) and (not partner.direct_chat) and (not partner.friend):
 				print("Deleting",partner.name)
 				session.delete(partner)
+			if partner.friend:
+				partner.start_direct_chat(session)
 		session.commit()
 
 		prefix = "/media/"

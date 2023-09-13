@@ -137,8 +137,6 @@ window.appdata = {
 	contacts:{},
 	selected_chat:null,
 	selectChat(uid){
-
-
 			if (this.chats[uid].full_loaded) {
 				this.selected_chat = this.chats[uid];
 				var chatwindow = document.getElementById('chat');
@@ -200,7 +198,7 @@ window.appdata = {
 		}
 	},
 
-	sendMessage(content,media) {
+	sendMessage(content,media,messagetype) {
 
 		var chatwindow = document.getElementById('chat');
 		var atEnd = ((chatwindow.scrollTop + 2000) > chatwindow.scrollHeight);
@@ -211,6 +209,7 @@ window.appdata = {
 				chat_id: this.selected_chat.uid,
 				content: content,
 				media: media,
+				messagetype: messagetype,
 				timestamp: timestamp
 			})
 				.then(response=>response.json())
@@ -425,10 +424,11 @@ window.appdata = {
 
 	/// CONTACTS
 	patchContact(data) {
-		patch("/api/contact",data)
+		return patch("/api/contact",data)
 			.then(response=>response.json())
 			.then(result=>{
 				Object.assign(this.contacts[data.handle],result);
+				this.resolveReferences(this.contacts[data.handle]);
 			})
 	},
 	addFriend(handle){
@@ -439,21 +439,16 @@ window.appdata = {
 	},
 	startChat(handle) {
 		for (var chat of Object.values(this.chats)) {
-			if (chat.partner == handle) {
+			if (chat.partner?.handle == handle) {
 				this.selectChat(chat.uid);
 				return;
 			}
 		}
 
-		patch("/api/contact",{
-				handle:handle,
-				start_chat:true
-		})
-			.then(response=>response.json())
+		this.patchContact({handle:handle,start_chat:true})
 			.then(result=>{
-				this.chats[result.direct_chat.uid] = result.direct_chat;
 				this.$nextTick(()=>{
-					this.selectChat(result.direct_chat.uid);
+					this.selectChat(this.contacts[handle].direct_chat.uid);
 				});
 
 			})
@@ -529,6 +524,7 @@ window.appdata = {
 
 		const file = event.dataTransfer.files[0];
 		if (file) {
+			var mediatype = file.type.split('/')[0];
 			const formData = new FormData();
 			formData.append('file', file);
 			fetch('/api/upload_media', {
@@ -537,7 +533,7 @@ window.appdata = {
 		    })
 		    .then((response) => response.json())
 		    .then((result) => {
-					this.sendMessage("",result.path);
+					this.sendMessage("",result.path,mediatype);
 
 		    })
 		}
