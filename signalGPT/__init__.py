@@ -11,8 +11,8 @@ except FileNotFoundError:
     with open('config.yml', 'w') as fd:
         config = {
             'apikey': None,
-            'model': 'gpt-3.5-turbo-16k',
-			'model_meta': 'gpt-4',
+            'model': 'gpt-3.5-turbo-16k', # MUCH cheaper
+			'model_meta': 'gpt-4', #pretty much necessary for next responder prediction, gpt-3 doesn't understand how group chats work
             'user': {
                 'name': 'Anon',
                 'handle': 'anon',
