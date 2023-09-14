@@ -136,6 +136,7 @@ window.appdata = {
 	chats:{},
 	contacts:{},
 	selected_chat:null,
+	selected_newchar_male:false,
 	selectChat(uid){
 			if (this.chats[uid].full_loaded) {
 				this.selected_chat = this.chats[uid];
@@ -272,6 +273,7 @@ window.appdata = {
 	findNewContact(searchstr) {
 		post("/api/contact",{
 			desc:searchstr
+			//male:this.selected_newchar_male
 		})
 			.then(response=>response.json())
 			.then(result=>{

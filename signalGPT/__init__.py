@@ -27,7 +27,7 @@ except FileNotFoundError:
         }
         yaml.dump(config, fd)
 
-for folder in ['media', 'contacts', 'conversations', 'backups']:
+for folder in ['media', 'contacts', 'conversations', 'backups','debug']:
     os.makedirs(folder, exist_ok=True)
 
 openai.api_key = config['apikey']

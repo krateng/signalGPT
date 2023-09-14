@@ -71,6 +71,7 @@ class Partner(Base):
 	uid = Column(Integer)
 	handle = Column(String,primary_key=True)
 	name = Column(String)
+	male = Column(Boolean,default=False)
 	bio = Column(String)
 	image = Column(String)
 	instructions = Column(String)
@@ -89,8 +90,9 @@ class Partner(Base):
 			data['handle'] = results['handle']
 			data['bio'] = results['bio']
 			data['instructions'] = results['prompt']
+			data['male'] = results['male']
 
-			data['image'] = create_character_image(results['img_prompt'],results['img_prompt_keywords'])
+			data['image'] = create_character_image(results['img_prompt'],results['img_prompt_keywords'],male=data['male'])
 
 		super().__init__(**data)
 

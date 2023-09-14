@@ -11,6 +11,7 @@
     --msgreceived_text: #fdf6e3;
 		--button: blue;
 		--button-active: cyan;
+		--button-selected: gold;
 }
 
 body, html {
@@ -347,7 +348,7 @@ input {
 
 button {
 	all: unset;
-	display:inline-block;
+	display:inline-flex;
 	border-radius: 50%;
 	height:20px;
 	width:20px;
@@ -357,6 +358,8 @@ button {
 	fill: white;
 	border:1px solid white;
 	text-align: center;
+	justify-content: center;
+	align-items: center;
 	cursor:pointer;
 }
 button:hover {
@@ -369,4 +372,9 @@ button svg {
 button.bigbutton {
 	height:80px;
 	width:80px;
+}
+
+button.selected {
+	background-color: var(--button-selected);
+	fill: black;
 }

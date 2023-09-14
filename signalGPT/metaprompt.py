@@ -18,6 +18,7 @@ Include some instructions about what language to use (e.g. heavy use of slang, m
 Avoid introducing unprompted platitudes and moralizing phrases about 'breaking norms', 'challenging expectations', 'self-expression', 'empowering', 'stigma' etc.
 Only include general instructions on how to react, behave, speak etc., no specific instructions what to do right now.
 'name': The informal name (e.g. first name, nickname, shortened name) of the character
+'male': simple boolean value, true if the character is male, false if they are female
 'handle': A handle they might use on social media. Do not include the @ sign. It must not contain spaces or non-ASCII characters.
 'bio': A short biography they might use on social media (no more than 15-20 words)
 'img_prompt': a description of the character's profile picture.
@@ -47,10 +48,17 @@ def create_character_info(notes):
 	return info
 
 
-def create_character_image(prompt,keywords):
+def create_character_image(prompt,keywords,male):
 	negative_prompt = [
 		"(worst quality:1.4)","(low quality:1.4)", "low-res", "missing fingers", "extra digit", "extra limbs", "malformed limbs", "disfigured"
 	]
+
+	# this is kinda necessary for anydream
+	# i wonder why ;)
+	if male:
+		negative_prompt = ['female','woman','girl'] + negative_prompt
+	else:
+		negative_prompt = ['male','man','boy'] + negative_prompt
 
 	# load cookies from file
 	authinfo = config.get('auth',{}).get('anydream',{})
@@ -62,11 +70,9 @@ def create_character_image(prompt,keywords):
 
 	if cookies:
 
-		used_prompt = prompt
-		#used_prompt = ",".join(keywords)
-
-		print("Getting image from anydream...")
-		print("Prompt: " + used_prompt)
+		prompt_pos = prompt
+		#prompt_pos = ",".join(keywords)
+		prompt_neg = ', '.join(negative_prompt)
 
 		session = requests.Session()
 		session.cookies.update(cookies)
@@ -79,8 +85,8 @@ def create_character_image(prompt,keywords):
 				'cfg_scale': "7",
 				'height':640,
 				'width': 640,
-				'prompt':used_prompt,
-				'negative_prompt': ', '.join(negative_prompt),
+				'prompt':prompt_pos,
+				'negative_prompt': prompt_neg,
 				'seed': -1,
 				'sampler_name': "DPM++ 2M Karras",
 				'steps': 25
@@ -92,8 +98,7 @@ def create_character_image(prompt,keywords):
 		if req_id := j.get('requestId'):
 			pass
 		else:
-			print(j)
-			print()
+			save_debug_file('imageeneration',{'prompt_positive':prompt_pos,'prompt_negative':prompt_neg,'result':j})
 			return ""
 
 		import time
@@ -108,21 +113,18 @@ def create_character_image(prompt,keywords):
 
 			if status := j.get('status'):
 				if status == 'success':
-					print()
-					return j['images'][0]['imgUrl']
+					img = j['images'][0]['imgUrl']
+					save_debug_file('imageeneration',{'prompt_positive':prompt_pos,'prompt_negative':prompt_neg,'result':img})
+					return img
 			else:
-				print(j)
-				with open("debug.json",'w') as fd:
-					json.dump({
-						'headers':dict(r1.headers),
-						'cookies':dict(r1.cookies),
-						'json_content':r1.json()
-					},fd,indent=4)
-				print()
+				save_debug_file('imageeneration',{'prompt_positive':prompt_pos,'prompt_negative':prompt_neg,'result':{
+					'json':r1.json(),
+					'headers':dict(r1.headers),
+					'cookies':dict(r1.cookies)
+				}})
 				return ""
 
 	else:
-		print()
 		return ""
 
 
