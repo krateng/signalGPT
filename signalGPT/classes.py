@@ -388,14 +388,14 @@ class DirectChat(Chat):
 
 
 
-	def get_response(self,replace=None):
+	def get_response(self,replace=None,model=config['model_base']):
 		self.partner.print_type_indicator()
-		completion = openai.ChatCompletion.create(model=config['model'],messages=self.get_openai_msg_list(upto=replace))
+		completion = openai.ChatCompletion.create(model=model,messages=self.get_openai_msg_list(upto=replace))
 		msg = completion['choices'][0]['message']
 		cost = completion['usage'] # COUNT THIS?
 		content = msg['content']
 
-		prices = COST[config['model']]
+		prices = COST[model]
 		self.total_paid += (prices[0] * cost['prompt_tokens'])
 		self.total_paid += (prices[1] * cost['completion_tokens'])
 
@@ -409,7 +409,7 @@ class DirectChat(Chat):
 				m = self.add_message(author=self.partner,content=content)
 				yield m
 				self.partner.print_message(content)
-				#time.sleep(0.5)
+				time.sleep(1)
 
 class GroupChat(Chat):
 	__tablename__ = 'groupchats'
@@ -531,10 +531,10 @@ class GroupChat(Chat):
 
 		return responder
 
-	def get_response(self,replace=None):
+	def get_response(self,replace=None,model=config['model_base']):
 		responder = replace.author if replace else self.pick_next_responder()
 
-		completion = openai.ChatCompletion.create(model=config['model'],messages=self.get_openai_msg_list(responder,upto=replace))
+		completion = openai.ChatCompletion.create(model=model,messages=self.get_openai_msg_list(responder,upto=replace))
 		msg = completion['choices'][0]['message']
 		unwanted_prefix = f"{responder.name}: "
 		if msg['content'].startswith(unwanted_prefix):
@@ -543,7 +543,7 @@ class GroupChat(Chat):
 		content = msg['content']
 		cost = completion['usage']
 
-		prices = COST[config['model']]
+		prices = COST[model]
 		self.total_paid += prices[0] * cost['prompt_tokens']
 		self.total_paid += prices[1] * cost['completion_tokens']
 
@@ -554,6 +554,7 @@ class GroupChat(Chat):
 			for content in [contentpart for contentpart in content.split("\n\n") if contentpart]:
 				m = self.add_message(author=responder,content=content)
 				yield m
+				time.sleep(1)
 
 
 	def add_person(self,person):

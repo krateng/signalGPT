@@ -377,4 +377,5 @@ button.bigbutton {
 button.selected {
 	background-color: var(--button-selected);
 	fill: black;
+	color: black;
 }

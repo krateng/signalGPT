@@ -76,16 +76,18 @@ def api_upload_media():
 	}
 
 
-@get("/api/get_message/<uid>")
-def api_get_message(uid):
+@post("/api/generate_message")
+def api_generate_message():
+	info = request.json
+	print(info)
+	model = config['model_advanced'] if info['bettermodel'] else config['model_base']
 	with Session() as session:
-		chat = session.query(Chat).where(Chat.uid == uid).first()
-		msgs = list(chat.get_response())
+		chat = session.query(Chat).where(Chat.uid == info['chat_id']).first()
+		msgs = list(chat.get_response(model=model))
 		for msg in msgs:
 			session.add(msg)
 		session.commit()
 		return {'messages': [m.serialize() for m in msgs]}
-
 
 @post("/api/send_message")
 def api_send_message():
@@ -116,10 +118,11 @@ def api_send_message_message():
 @post("/api/regenerate_message")
 def api_regenerate_message():
 	info = request.json
+	model = config['model_advanced'] if info['bettermodel'] else config['model_base']
 	with Session() as session:
 		msg = session.query(Message).where(Message.uid == info['uid']).first()
 		chat = msg.chat
-		msgs = list(chat.get_response(replace=msg))
+		msgs = list(chat.get_response(replace=msg,model=model))
 		session.commit()
 		return msgs[0].serialize()
 

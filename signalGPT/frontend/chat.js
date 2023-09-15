@@ -137,6 +137,7 @@ window.appdata = {
 	contacts:{},
 	selected_chat:null,
 	selected_newchar_male:false,
+	selected_model_advanced:false,
 	selectChat(uid){
 			if (this.chats[uid].full_loaded) {
 				this.selected_chat = this.chats[uid];
@@ -232,7 +233,10 @@ window.appdata = {
 		var chatwindow = document.getElementById('chat');
 		var atEnd = ((chatwindow.scrollTop + 2000) > chatwindow.scrollHeight);
 
-		fetch("/api/get_message/" + this.selected_chat.uid)
+		post("/api/generate_message",{
+			chat_id:this.selected_chat.uid,
+			bettermodel:this.selected_model_advanced
+		})
 			.then(response=>response.json())
 			.then(result=>{
 				for (var msg of result.messages) {
@@ -500,7 +504,8 @@ window.appdata = {
 	},
 	regenerateMessage(msg_uid) {
 		post("/api/regenerate_message",{
-			uid:msg_uid
+			uid:msg_uid,
+			bettermodel:this.selected_model_advanced
 		})
 			.then(response=>response.json())
 			.then(result=>{
