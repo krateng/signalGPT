@@ -79,7 +79,6 @@ def api_upload_media():
 @post("/api/generate_message")
 def api_generate_message():
 	info = request.json
-	print(info)
 	model = config['model_advanced'] if info['bettermodel'] else config['model_base']
 	with Session() as session:
 		chat = session.query(Chat).where(Chat.uid == info['chat_id']).first()

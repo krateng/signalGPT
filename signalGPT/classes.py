@@ -1,4 +1,5 @@
 import openai
+import tiktoken
 import json
 import oyaml as yaml
 import os
@@ -25,6 +26,7 @@ from .helper import save_debug_file
 
 
 MAX_MESSAGES_IN_CONTEXT = 30
+MAX_MESSAGE_LENGTH = 100
 
 COST = {
 	'gpt-3.5-turbo-16k':(3,4),
@@ -54,6 +56,16 @@ def get_media_type(filename):
 		ext = filename.split('.')[-1].lower()
 		if ext in ['mp4','mkv','webm','avi']: return 'video'
 		if ext in ['jpg','jpeg','png','gif','webp']: return 'image'
+
+def generate_bias(wordlist,model):
+	enc = tiktoken.encoding_for_model(model)
+	#first join with comma to ensure no combining of words into tokens, then filter out comma token
+	tokens = enc.encode(','.join([wordvar for word in wordlist for wordvar in [word," " + word]]))
+	commatoken = enc.encode(",")[0]
+	tokens = [token for token in tokens if token != commatoken]
+	bias = {token:2 for token in tokens}
+	return bias
+
 
 
 Base = declarative_base()
@@ -389,8 +401,9 @@ class DirectChat(Chat):
 
 
 	def get_response(self,replace=None,model=config['model_base']):
+
 		self.partner.print_type_indicator()
-		completion = openai.ChatCompletion.create(model=model,messages=self.get_openai_msg_list(upto=replace))
+		completion = openai.ChatCompletion.create(model=model,messages=self.get_openai_msg_list(upto=replace),logit_bias=generate_bias(config['preferred_words'],model))
 		msg = completion['choices'][0]['message']
 		cost = completion['usage'] # COUNT THIS?
 		content = msg['content']
@@ -534,7 +547,7 @@ class GroupChat(Chat):
 	def get_response(self,replace=None,model=config['model_base']):
 		responder = replace.author if replace else self.pick_next_responder()
 
-		completion = openai.ChatCompletion.create(model=model,messages=self.get_openai_msg_list(responder,upto=replace))
+		completion = openai.ChatCompletion.create(model=model,messages=self.get_openai_msg_list(responder,upto=replace),logit_bias=generate_bias(config['preferred_words'],model))
 		msg = completion['choices'][0]['message']
 		unwanted_prefix = f"{responder.name}: "
 		if msg['content'].startswith(unwanted_prefix):

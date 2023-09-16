@@ -144,9 +144,8 @@ def guess_next_responder(msgs,people,user):
 
 	messages = [
 		{"content":pick_responder_prompt,"role":"system"},
-		{"role":"user","content":"The users are: " + ', '.join(ppl.keys())},
-		{"role":"user","content":"Chatlog:\n\n" + '\n'.join(msg.get_author().name + ": " + msg.display_for_textonly_model() for msg in msgs[-30:])},
-		{"role":"user","content":f"Please only pick one of {', '.join(ppl.keys())}. DO NOT PICK {user.name}!"}
+		{"role":"system","content":"The possible responders are: " + ', '.join(ppl.keys()) + f". {user.name} is not a valid pick."},
+		{"role":"user","content":"Chatlog:\n\n" + '\n'.join(msg.get_author().name + ": " + msg.display_for_textonly_model() for msg in msgs[-30:])}
 	]
 
 	#from pprint import pprint
