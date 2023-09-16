@@ -20,7 +20,7 @@ from sqlalchemy.ext.declarative import declarative_base
 
 
 from .__init__ import config
-from .metaprompt import create_character_info, create_character_image, guess_next_responder, summarize_chat
+from .metaprompt import create_character_info, create_character_image, guess_next_responder, summarize_chat, create_image
 from .helper import save_debug_file
 
 
@@ -54,8 +54,8 @@ def bold(txt):
 def get_media_type(filename):
 	if filename:
 		ext = filename.split('.')[-1].lower()
-		if ext in ['mp4','mkv','webm','avi']: return 'video'
-		if ext in ['jpg','jpeg','png','gif','webp']: return 'image'
+		if ext in ['mp4','mkv','webm','avi']: return 'Video'
+		if ext in ['jpg','jpeg','png','gif','webp']: return 'Image'
 
 def generate_bias(wordlist,model):
 	enc = tiktoken.encoding_for_model(model)
@@ -208,7 +208,7 @@ class Message(Base):
 			'content':self.content or "",
 			'message_type':self.message_type.name if self.message_type else None,
 			'media_attached':self.media_attached,
-			'media_type':get_media_type(self.media_attached),
+			#'media_type':get_media_type(self.media_attached),
 			'timestamp':self.timestamp,
 			'display_simplified': self.content and (len(self.content)<6) and ("" == emoji.replace_emoji(self.content,replace=''))
 		}
@@ -245,6 +245,25 @@ class Chat(Base):
 	style_prompt = "Write as if you are using a messaging / chat app. Depending on your personality, this can mean incomplete sentences, spelling mistakes, improper grammar, abbreviations, ellipses, and use of emojis. It also means casual and informal language. Remember, you are a person, not just an assistant. No need to always be positive and agreeable. Speak your mind, have realistic interactions. Avoid any formatting other than bold and cursive text."
 
 	userinfo_prompt = "About me: {desc}. This is simply something you know about me, no need to explicitly mention it."
+
+
+	functions = [
+		{
+			'name':'generate_image',
+			'description':'''Can be used to send an image in the chat. It should be used very rarely, only when sending a picture fits the context or is requested.
+				The prompt should objectively describe what's in the image to someone who has no context or knowledge of the speaker. Prefer keywords over sentences.
+				The prompt can be very long and detailed. The negative prompt should consist of short keywords of undesirable traits of the pictures.
+				The 'landscape' argument should specify whether to send a picture in landscape mode or portrait mode.''',
+			'parameters':{
+				'type':'object',
+				'properties':{
+					'prompt': {'type':'string'},
+					'negative_prompt': {'type':'string'},
+					'landscape': {'type':'boolean'}
+				}
+			}
+		}
+	]
 
 
 	def readable_cost(self):
@@ -403,26 +422,41 @@ class DirectChat(Chat):
 	def get_response(self,replace=None,model=config['model_base']):
 
 		self.partner.print_type_indicator()
-		completion = openai.ChatCompletion.create(model=model,messages=self.get_openai_msg_list(upto=replace),logit_bias=generate_bias(config['preferred_words'],model))
-		msg = completion['choices'][0]['message']
-		cost = completion['usage'] # COUNT THIS?
-		content = msg['content']
+		completion = openai.ChatCompletion.create(
+			model=model,
+			messages=self.get_openai_msg_list(upto=replace),
+			logit_bias=generate_bias(config['preferred_words'],model),
+			functions=self.functions
+		)
 
+		msg = completion['choices'][0]['message']
+		cost = completion['usage']
 		prices = COST[model]
 		self.total_paid += (prices[0] * cost['prompt_tokens'])
 		self.total_paid += (prices[1] * cost['completion_tokens'])
 
-		print("\r",end="")
-
-		if replace:
-			replace.content = content
-			yield replace
+		if funccall := msg.get('function_call'):
+			pprint(funccall)
+			args = json.loads(funccall['arguments'])
+			img = create_image(args['prompt'],args['negative_prompt'],format='landscape' if args['landscape'] else 'portrait')
+			m = self.add_message(author=self.partner,message_type=MessageType.Image,media_attached=img)
+			yield m
 		else:
-			for content in [contentpart for contentpart in content.split("\n\n") if contentpart]:
-				m = self.add_message(author=self.partner,content=content)
-				yield m
-				self.partner.print_message(content)
-				time.sleep(1)
+			content = msg['content']
+
+
+
+			print("\r",end="")
+
+			if replace:
+				replace.content = content
+				yield replace
+			else:
+				for content in [contentpart for contentpart in content.split("\n\n") if contentpart]:
+					m = self.add_message(author=self.partner,content=content)
+					yield m
+					self.partner.print_message(content)
+					time.sleep(1)
 
 class GroupChat(Chat):
 	__tablename__ = 'groupchats'
@@ -547,27 +581,42 @@ class GroupChat(Chat):
 	def get_response(self,replace=None,model=config['model_base']):
 		responder = replace.author if replace else self.pick_next_responder()
 
-		completion = openai.ChatCompletion.create(model=model,messages=self.get_openai_msg_list(responder,upto=replace),logit_bias=generate_bias(config['preferred_words'],model))
+		completion = openai.ChatCompletion.create(
+			model=model,
+			messages=self.get_openai_msg_list(responder,upto=replace),
+			logit_bias=generate_bias(config['preferred_words'],model),
+			functions=self.functions
+		)
+
+
 		msg = completion['choices'][0]['message']
-		unwanted_prefix = f"{responder.name}: "
-		if msg['content'].startswith(unwanted_prefix):
-			msg['content'] = msg['content'][len(unwanted_prefix):]
-
-		content = msg['content']
 		cost = completion['usage']
-
 		prices = COST[model]
 		self.total_paid += prices[0] * cost['prompt_tokens']
 		self.total_paid += prices[1] * cost['completion_tokens']
 
-		if replace:
-			replace.content = content
-			yield replace
+
+		if funccall := msg.get('function_call'):
+			pprint(funccall)
+			args = json.loads(funccall['arguments'])
+			img = create_image(args['prompt'],args.get('negative_prompt'),format='landscape' if args.get('landscape') else 'portrait')
+			m = self.add_message(author=responder,message_type=MessageType.Image,media_attached=img)
+			yield m
 		else:
-			for content in [contentpart for contentpart in content.split("\n\n") if contentpart]:
-				m = self.add_message(author=responder,content=content)
-				yield m
-				time.sleep(1)
+			unwanted_prefix = f"{responder.name}: "
+			if msg['content'].startswith(unwanted_prefix):
+				msg['content'] = msg['content'][len(unwanted_prefix):]
+
+			content = msg['content']
+
+			if replace:
+				replace.content = content
+				yield replace
+			else:
+				for content in [contentpart for contentpart in content.split("\n\n") if contentpart]:
+					m = self.add_message(author=responder,content=content)
+					yield m
+					time.sleep(1)
 
 
 	def add_person(self,person):

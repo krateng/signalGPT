@@ -2,6 +2,7 @@ import openai
 import json
 import requests
 import random
+import time
 
 import browser_cookie3
 
@@ -60,7 +61,14 @@ def create_character_image(prompt,keywords,male):
 	else:
 		negative_prompt = ['male','man','boy'] + negative_prompt
 
-	# load cookies from file
+	prompt_pos = prompt
+	#prompt_pos = ",".join(keywords)
+	prompt_neg = ', '.join(negative_prompt)
+
+	return create_image(prompt_pos,prompt_neg,'square')
+
+
+def create_image(prompt_pos,prompt_neg="",format='sqaure'):
 	authinfo = config.get('auth',{}).get('anydream',{})
 	if authinfo.get('import'):
 		cj = browser_cookie3.load(domain_name=".anydream.xyz")
@@ -69,13 +77,14 @@ def create_character_image(prompt,keywords,male):
 		cookies = {} #direct from file not supported for now
 
 	if cookies:
-
-		prompt_pos = prompt
-		#prompt_pos = ",".join(keywords)
-		prompt_neg = ', '.join(negative_prompt)
-
 		session = requests.Session()
 		session.cookies.update(cookies)
+
+		resolutions = {
+			'square':(640,640),
+			'portrait':(512,768),
+			'landscape':(768,512)
+		}
 
 		r1 = session.post("https://www.anydream.xyz/api/a1_request",json={
 			'model': "ReAL",
@@ -83,15 +92,15 @@ def create_character_image(prompt,keywords,male):
 			'params':{
 				'batch_size': 1,
 				'cfg_scale': "7",
-				'height':640,
-				'width': 640,
+				'height':resolutions[format][1],
+				'width': resolutions[format][0],
 				'prompt':prompt_pos,
 				'negative_prompt': prompt_neg,
 				'seed': -1,
 				'sampler_name': "DPM++ 2M Karras",
 				'steps': 25
 			},
-			'aspectRatio': "square"
+			'aspectRatio': format
 		})
 		j = r1.json()
 
@@ -101,7 +110,7 @@ def create_character_image(prompt,keywords,male):
 			save_debug_file('imageeneration',{'prompt_positive':prompt_pos,'prompt_negative':prompt_neg,'result':j})
 			return ""
 
-		import time
+
 		while True:
 
 			time.sleep(2)
@@ -126,6 +135,8 @@ def create_character_image(prompt,keywords,male):
 
 	else:
 		return ""
+
+
 
 
 pick_responder_prompt = '''
