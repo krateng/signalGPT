@@ -137,7 +137,7 @@
 					x-on:drop="sendMessageMedia(event);dragContactReceive(event);">
 
 					<template x-if="selected_chat">
-						<template x-for="[previous,message] in (selected_chat?.messages?.map(arrayValueAndPrev) ?? [])">
+						<template x-for="[previous,message] in (selected_chat?.messages?.map(arrayValueAndPrev) ?? [])" :key="message.uid">
 
 							<div>
 								<span class="dateindicator" x-show="!sameDay(message.timestamp,previous?.timestamp)" x-text="formatDate(message.timestamp)"></span>

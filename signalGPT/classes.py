@@ -27,6 +27,7 @@ from .helper import save_debug_file
 
 MAX_MESSAGES_IN_CONTEXT = 30
 MAX_MESSAGE_LENGTH = 100
+PREFERRED_TOKEN_BIAS = 5
 
 COST = {
 	'gpt-3.5-turbo-16k':(3,4),
@@ -63,8 +64,34 @@ def generate_bias(wordlist,model):
 	tokens = enc.encode(','.join([wordvar for word in wordlist for wordvar in [word," " + word]]))
 	commatoken = enc.encode(",")[0]
 	tokens = [token for token in tokens if token != commatoken]
-	bias = {token:2 for token in tokens}
+	bias = {token:PREFERRED_TOKEN_BIAS for token in tokens}
 	return bias
+
+
+def ai_accessible_function(func):
+	func._aiaccessible = True
+	func._schema = {
+		'name':func.__name__,
+		'description':func.__doc__,
+		'parameters':{
+			'type':'object',
+			'required':[param for param in func.__annotations__ if func.__annotations__[param][1]],
+			'properties':{
+				name: {
+					'type':type[0],
+					'items': {'type':type[1] },
+					'description': desc
+				} if len(type)>1 else {
+					'type':type[0],
+					'description': desc
+				}
+				for name,(type,req,desc) in func.__annotations__.items()
+			}
+		}
+	}
+	return func
+
+
 
 
 
@@ -105,6 +132,8 @@ class Partner(Base):
 			data['male'] = results['male']
 
 			data['image'] = create_character_image(results['img_prompt'],results['img_prompt_keywords'],male=data['male'])
+
+		if "preferred_words" in data: data.pop("preferred_words")
 
 		super().__init__(**data)
 
@@ -247,23 +276,33 @@ class Chat(Base):
 	userinfo_prompt = "About me: {desc}. This is simply something you know about me, no need to explicitly mention it."
 
 
-	functions = [
-		{
-			'name':'generate_image',
-			'description':'''Can be used to send an image in the chat. It should be used very rarely, only when sending a picture fits the context or is requested.
-				The prompt should objectively describe what's in the image to someone who has no context or knowledge of the speaker. Prefer keywords over sentences.
-				The prompt can be very long and detailed. The negative prompt should consist of short keywords of undesirable traits of the pictures.
-				The 'landscape' argument should specify whether to send a picture in landscape mode or portrait mode.''',
-			'parameters':{
-				'type':'object',
-				'properties':{
-					'prompt': {'type':'string'},
-					'negative_prompt': {'type':'string'},
-					'landscape': {'type':'boolean'}
-				}
-			}
-		}
-	]
+
+
+	def get_ai_accessible_funcs(self):
+		cls = self.__class__
+		fulldict = {}
+		for baseclass in reversed(cls.__mro__):
+			fulldict.update(baseclass.__dict__)
+
+		funcs = [f for f in fulldict.values() if getattr(f,'_aiaccessible',False)]
+		funcs = {f.__name__:{'schema':f._schema,'func':f} for f in funcs}
+		return funcs
+
+
+	@ai_accessible_function
+	def send_image(self,author,
+		prompt: (('array','string'),True,"Keywords that objectively describe what the image shows to someone who has no context or knowledge of you or this chat. You may use quite a few keywords here and go into detail.")=[],
+		negative_prompt: (('array','string'),False,"Keywords for undesirable traits or content of the picture.") =[],
+		landscape: (('boolean',),False,"Whether to send a picture in landscape mode instead of portrait mode")=False
+	):
+		"Can be used to send an image in the chat. It should be used very rarely, only when sending a picture fits the context or is requested."
+		prompt_pos = prompt
+		prompt_neg = negative_prompt
+		format = 'landscape' if landscape else 'portrait'
+
+		img = create_image(prompt_pos,prompt_neg,format)
+		m = self.add_message(author=author,message_type=MessageType.Image,media_attached=img)
+		yield m
 
 
 	def readable_cost(self):
@@ -419,6 +458,10 @@ class DirectChat(Chat):
 
 
 
+
+
+
+
 	def get_response(self,replace=None,model=config['model_base']):
 
 		self.partner.print_type_indicator()
@@ -426,7 +469,7 @@ class DirectChat(Chat):
 			model=model,
 			messages=self.get_openai_msg_list(upto=replace),
 			logit_bias=generate_bias(config['preferred_words'],model),
-			functions=self.functions
+			functions=[f['schema'] for f in self.get_ai_accessible_funcs().values()]
 		)
 
 		msg = completion['choices'][0]['message']
@@ -435,12 +478,11 @@ class DirectChat(Chat):
 		self.total_paid += (prices[0] * cost['prompt_tokens'])
 		self.total_paid += (prices[1] * cost['completion_tokens'])
 
+
 		if funccall := msg.get('function_call'):
-			pprint(funccall)
 			args = json.loads(funccall['arguments'])
-			img = create_image(args['prompt'],args['negative_prompt'],format='landscape' if args['landscape'] else 'portrait')
-			m = self.add_message(author=self.partner,message_type=MessageType.Image,media_attached=img)
-			yield m
+			funcs = self.get_ai_accessible_funcs()
+			yield from funcs[funccall['name']]['func'](self=self,author=self.partner,**args)
 		else:
 			content = msg['content']
 
@@ -475,6 +517,15 @@ class GroupChat(Chat):
 	style_prompt_multiple = "The messages you receive will contain the speaker at the start. Please factor this in to write your response, but do not prefix your own response with your name. Don't ever respond for someone else, even if they are being specifically addressed. You do not need to address every single point from every message, just keep a natural conversation flow."
 	style_reminder_prompt = "Make sure you answer as {character_name}, not as another character in the chat! Do not prefix your response with your name."
 
+	@ai_accessible_function
+	def rename_chat(self,author,
+		name: (('string',),True,"New name")
+	):
+		"Can be used to rename the current group chat"
+
+		self.name = name
+		m = self.add_message(message_type=MessageType.MetaRename,author=author,content=name)
+		yield m
 
 
 	def serialize_short(self):
@@ -585,7 +636,7 @@ class GroupChat(Chat):
 			model=model,
 			messages=self.get_openai_msg_list(responder,upto=replace),
 			logit_bias=generate_bias(config['preferred_words'],model),
-			functions=self.functions
+			functions=[f['schema'] for f in self.get_ai_accessible_funcs().values()]
 		)
 
 
@@ -597,11 +648,9 @@ class GroupChat(Chat):
 
 
 		if funccall := msg.get('function_call'):
-			pprint(funccall)
 			args = json.loads(funccall['arguments'])
-			img = create_image(args['prompt'],args.get('negative_prompt'),format='landscape' if args.get('landscape') else 'portrait')
-			m = self.add_message(author=responder,message_type=MessageType.Image,media_attached=img)
-			yield m
+			funcs = self.get_ai_accessible_funcs()
+			yield from funcs[funccall['name']]['func'](self=self,author=responder,**args)
 		else:
 			unwanted_prefix = f"{responder.name}: "
 			if msg['content'].startswith(unwanted_prefix):

@@ -50,25 +50,35 @@ def create_character_info(notes):
 
 
 def create_character_image(prompt,keywords,male):
-	negative_prompt = [
-		"(worst quality:1.4)","(low quality:1.4)", "low-res", "missing fingers", "extra digit", "extra limbs", "malformed limbs", "disfigured"
-	]
 
 	# this is kinda necessary for anydream
 	# i wonder why ;)
 	if male:
-		negative_prompt = ['female','woman','girl'] + negative_prompt
+		negative_prompt = ['female','woman','girl']
 	else:
-		negative_prompt = ['male','man','boy'] + negative_prompt
+		negative_prompt = ['male','man','boy']
 
-	prompt_pos = prompt
+	prompt_pos = [prompt]
 	#prompt_pos = ",".join(keywords)
-	prompt_neg = ', '.join(negative_prompt)
+	prompt_neg = negative_prompt
 
 	return create_image(prompt_pos,prompt_neg,'square')
 
 
-def create_image(prompt_pos,prompt_neg="",format='sqaure'):
+def create_image(prompt_pos=[],prompt_neg=[],format='sqaure'):
+
+	if isinstance(prompt_pos,str):
+		prompt_pos = [prompt_pos]
+	if isinstance(prompt_neg,str):
+		prompt_neg = [prompt_neg]
+
+	prompt_neg += [
+		"(worst quality:1.4)","(low quality:1.4)", "low-res", "missing fingers", "extra digit", "extra limbs", "malformed limbs", "disfigured"
+	]
+
+	prompt_pos = ",".join(prompt_pos)
+	prompt_neg = ",".join(prompt_neg)
+
 	authinfo = config.get('auth',{}).get('anydream',{})
 	if authinfo.get('import'):
 		cj = browser_cookie3.load(domain_name=".anydream.xyz")
