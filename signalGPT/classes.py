@@ -199,6 +199,7 @@ class MessageType(enum.Enum):
 	MetaJoin = 10
 	MetaLeave = 11
 	MetaRename = 20
+	MetaChangePicture = 21
 
 class Message(Base):
 	__tablename__ = 'messages'
@@ -254,9 +255,10 @@ class Message(Base):
 			return "[has left the chat]"
 		elif self.message_type == MessageType.MetaRename:
 			return f"[has renamed the chat to '{self.content}']"
+		elif self.message_type == MessageType.MetaChangePicture:
+			return f"[has changed the group picture]"
 		else:
-			print("WEIRD MESSAGE")
-			print(self)
+			print("WEIRD MESSAGE:",self.message_type)
 			return ""
 
 
@@ -520,10 +522,22 @@ class GroupChat(Chat):
 	def rename_chat(self,author,
 		name: (('string',),True,"New name")
 	):
-		"Can be used to rename the current group chat"
+		"Can be used to rename the current group chat. This should be used only when there is a specific reason, or sometimes for comedic effect."
 
 		self.name = name
 		m = self.add_message(message_type=MessageType.MetaRename,author=author,content=name)
+		yield m
+
+	@ai_accessible_function
+	def change_group_picture(self,author,
+		prompt: (('array','string'),True,"Keywords that describe the image"),
+		negative_prompt: (('array','string'),False,"Keywords for undesirable traits or content of the picture.") = []
+	):
+		"Can be used to change the group picture. This should only be used when there is a specific reason, or rarely for comedic effect."
+
+		img = create_image(prompt,negative_prompt,format='square')
+		self.image = img
+		m = self.add_message(message_type=MessageType.MetaChangePicture,author=author,content=img)
 		yield m
 
 

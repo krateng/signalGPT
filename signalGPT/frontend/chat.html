@@ -40,6 +40,7 @@
 											<span x-show="chat.latest_message?.message_type == 'MetaJoin'" x-text="chat.latest_message?.author?.name + ' was added'"></span>
 											<span x-show="chat.latest_message?.message_type == 'MetaLeave'" x-text="chat.latest_message?.author?.name + ' left'"></span>
 											<span x-show="chat.latest_message?.message_type == 'MetaRename'" x-text="(chat.latest_message?.author?.name || 'You') + ' renamed the chat'"></span>
+											<span x-show="chat.latest_message?.message_type == 'MetaChangePicture'" x-text="(chat.latest_message?.author?.name || 'You') + ' changed the group image'"></span>
 
 										</p>
 										<p x-show="!chat.latest_message" x-text="chat.groupchat ? chat.desc : chat.partner.bio"></p>
@@ -158,6 +159,12 @@
 										<span class='chatmember' x-text="(message.author?.name || 'You')"></span>
 										renamed the chat to
 										<span class='chatname' x-text="message.content"></span>
+									</span>
+								</template>
+								<template x-if="message?.message_type == 'MetaChangePicture'">
+									<span	class="metaindicator">
+										<span class='chatmember' x-text="(message.author?.name || 'You')"></span>
+										changed the group image
 									</span>
 								</template>
 								<template x-if="['Text','Image','Video',null].includes(message?.message_type)">
