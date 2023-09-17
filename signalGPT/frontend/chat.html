@@ -177,7 +177,7 @@
 													</span>
 											</div>
 											<div x-show="message.display_simplified" :id="'msg_txt_simple_' + message.uid" class="message-simple-content">
-												<span x-text="message.content"></span>
+												<span x-text="message.content" x-on:focusout="finishEdit(event,alterMessageText)" :data-entitykey="message.uid"></span>
 											</div>
 											<span x-show="message.display_simplified" class="time" x-text="formatTime(message.timestamp)"></span>
 											<span x-show="message.display_simplified" class="admin_icons">

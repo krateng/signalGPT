@@ -14,11 +14,17 @@ except FileNotFoundError:
 			'model_base': 'gpt-3.5-turbo-16k', # MUCH cheaper
 			'model_advanced': 'gpt-4', # very useful for good character consistency and individuality
 			'model_meta': 'gpt-4', #pretty much necessary for next responder prediction, gpt-3 doesn't understand how group chats work
+			'ai_prompting_config': {
+				'chat_summary_update_min_hours': 96,
+			    'chat_summary_update_min_messages': 30,
+			    'message_gap_info_min_hours': 1
+			},
+
 			'user': {
 				'name': 'Anon',
 				'handle': 'anon',
 				'description': 'I am mysterious and unknowable. Love waffles.',
-				'preferred_emojis': '😃🪷🇰🇷'
+				'preferred_emojis': '😃😄😆😅😂😊😇😍🤯🤔🔥🇰🇷🇨🇭'
 			},
 			'auth': {
 				'anydream': {

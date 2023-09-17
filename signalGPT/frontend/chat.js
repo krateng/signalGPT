@@ -243,6 +243,9 @@ window.appdata = {
 					this.selected_chat.messages.push(msg);
 					this.resolveReferences(msg);
 					this.chats[this.selected_chat.uid].latest_message = msg;
+					if (msg.message_type.includes("Meta")) {
+						this.getChat(this.selected_chat.uid);
+					}
 					if (atEnd) {
 						this.$nextTick(()=>{
 							chatwindow.scrollTop = chatwindow.scrollHeight;

@@ -27,7 +27,7 @@ from .helper import save_debug_file
 
 MAX_MESSAGES_IN_CONTEXT = 30
 MAX_MESSAGE_LENGTH = 100
-PREFERRED_TOKEN_BIAS = 5
+PREFERRED_TOKEN_BIAS = 2
 
 COST = {
 	'gpt-3.5-turbo-16k':(3,4),
@@ -114,6 +114,7 @@ class Partner(Base):
 	bio = Column(String)
 	image = Column(String)
 	instructions = Column(String)
+	#linguistic_signature = Column(String) # comma separated
 	user_defined = Column(Boolean)
 	friend = Column(Boolean,default=False)
 	color = Column(String,nullable=True)
@@ -468,7 +469,7 @@ class DirectChat(Chat):
 		completion = openai.ChatCompletion.create(
 			model=model,
 			messages=self.get_openai_msg_list(upto=replace),
-			logit_bias=generate_bias(config['preferred_words'],model),
+			logit_bias=generate_bias(config.get('preferred_words',[]),model),
 			functions=[f['schema'] for f in self.get_ai_accessible_funcs().values()]
 		)
 
@@ -478,27 +479,25 @@ class DirectChat(Chat):
 		self.total_paid += (prices[0] * cost['prompt_tokens'])
 		self.total_paid += (prices[1] * cost['completion_tokens'])
 
-
-		if funccall := msg.get('function_call'):
-			args = json.loads(funccall['arguments'])
-			funcs = self.get_ai_accessible_funcs()
-			yield from funcs[funccall['name']]['func'](self=self,author=self.partner,**args)
-		else:
-			content = msg['content']
+		pprint(msg)
 
 
-
+		if content := msg.get('content'):
 			print("\r",end="")
 
 			if replace:
 				replace.content = content
 				yield replace
 			else:
-				for content in [contentpart for contentpart in content.split("\n\n") if contentpart]:
-					m = self.add_message(author=self.partner,content=content)
+				for contpart in [contentpart for contentpart in content.split("\n\n") if contentpart]:
+					m = self.add_message(author=self.partner,content=contpart)
 					yield m
-					self.partner.print_message(content)
+					self.partner.print_message(contpart)
 					time.sleep(1)
+		if funccall := msg.get('function_call'):
+			args = json.loads(funccall['arguments'])
+			funcs = self.get_ai_accessible_funcs()
+			yield from funcs[funccall['name']]['func'](self=self,author=self.partner,**args)
 
 class GroupChat(Chat):
 	__tablename__ = 'groupchats'
@@ -635,7 +634,7 @@ class GroupChat(Chat):
 		completion = openai.ChatCompletion.create(
 			model=model,
 			messages=self.get_openai_msg_list(responder,upto=replace),
-			logit_bias=generate_bias(config['preferred_words'],model),
+			logit_bias=generate_bias(config.get('preferred_words',[]),model),
 			functions=[f['schema'] for f in self.get_ai_accessible_funcs().values()]
 		)
 
@@ -647,16 +646,10 @@ class GroupChat(Chat):
 		self.total_paid += prices[1] * cost['completion_tokens']
 
 
-		if funccall := msg.get('function_call'):
-			args = json.loads(funccall['arguments'])
-			funcs = self.get_ai_accessible_funcs()
-			yield from funcs[funccall['name']]['func'](self=self,author=responder,**args)
-		else:
+		if content := msg['content']:
 			unwanted_prefix = f"{responder.name}: "
-			if msg['content'].startswith(unwanted_prefix):
-				msg['content'] = msg['content'][len(unwanted_prefix):]
-
-			content = msg['content']
+			if content.startswith(unwanted_prefix):
+				content = content[len(unwanted_prefix):]
 
 			if replace:
 				replace.content = content
@@ -666,6 +659,10 @@ class GroupChat(Chat):
 					m = self.add_message(author=responder,content=content)
 					yield m
 					time.sleep(1)
+		if funccall := msg.get('function_call'):
+			args = json.loads(funccall['arguments'])
+			funcs = self.get_ai_accessible_funcs()
+			yield from funcs[funccall['name']]['func'](self=self,author=responder,**args)
 
 
 	def add_person(self,person):
