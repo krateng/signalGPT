@@ -93,7 +93,7 @@ def api_send_message():
 	info = request.json
 	with Session() as session:
 		chat = session.query(Chat).where(Chat.uid == info['chat_id']).first()
-		m = chat.send_message(content=info['content'].strip(), media_attached=info.get('media'), msgtype=info.get('messagetype'))
+		m = chat.send_message(content=info['content'].strip(), msgtype=info.get('messagetype'))
 		# use client timestamp? or just register now?
 		session.add(m)
 		session.commit()

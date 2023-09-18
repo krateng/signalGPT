@@ -212,12 +212,15 @@ class Message(Base):
 	timestamp = Column(Integer)
 	message_type = Column(Enum(MessageType),default=MessageType.Text)
 	content = Column(String,default="")
+	content_secondary = Column(String) # used for media description
 	media_attached = Column(String)
 
 	def __init__(self,**data):
 		if 'content' in data:
 			data['content'] = data['content'].strip()
+
 		super().__init__(**data)
+
 
 	def get_author(self):
 		return self.author or Protagonist
@@ -238,7 +241,7 @@ class Message(Base):
 			'chat': {'ref':'chats','key':self.chat.uid},
 			'content':self.content or "",
 			'message_type':self.message_type.name if self.message_type else None,
-			'media_attached':self.media_attached,
+			#'media_attached':self.media_attached,
 			#'media_type':get_media_type(self.media_attached),
 			'timestamp':self.timestamp,
 			'display_simplified': self.content and (len(self.content)<6) and ("" == emoji.replace_emoji(self.content,replace=''))
@@ -248,7 +251,7 @@ class Message(Base):
 		if self.message_type in [None,MessageType.Text]:
 			return self.content
 		elif self.message_type in [MessageType.Image, MessageType.Video]:
-			return f"[{self.message_type.name} attached]"
+			return f"[{self.message_type.name} attached: {self.content_secondary}]"
 		elif self.message_type == MessageType.MetaJoin:
 			return "[has been added to chat]"
 		elif self.message_type == MessageType.MetaLeave:
@@ -315,7 +318,7 @@ class Chat(Base):
 		format = 'landscape' if landscape else 'portrait'
 
 		img = create_image(prompt_pos,prompt_neg,format)
-		m = self.add_message(author=author,message_type=MessageType.Image,media_attached=img)
+		m = self.add_message(author=author,message_type=MessageType.Image,content=img,content_secondary=short_desc)
 		yield m
 
 
@@ -374,8 +377,8 @@ class Chat(Base):
 		else:
 			return msgs
 
-	def send_message(self,content=None,media_attached=None,msgtype=None):
-		return self.add_message(Protagonist,content=content,media_attached=media_attached,msgtype=msgtype)
+	def send_message(self,content=None,msgtype=None):
+		return self.add_message(Protagonist,content=content,msgtype=msgtype)
 
 	def print(self):
 		for msg in self.messages:
@@ -516,8 +519,9 @@ class DirectChat(Chat):
 	def clean_content(self,content,responder):
 		return content
 
-	def get_response(self,replace=None,model=config['model_base']):
-		return super().get_response(replace=replace,model=model,responder=self.partner)
+	def pick_next_responder(self):
+		return self.partner
+
 
 class GroupChat(Chat):
 	__tablename__ = 'groupchats'
@@ -686,6 +690,8 @@ class GroupChat(Chat):
 
 def maintenance():
 	with Session() as session:
+
+		# remove chat-less contacts
 		for partner in session.query(Partner).all():
 			if (not partner.chats) and (not partner.direct_chat) and (not partner.friend):
 				print("Deleting",partner.name)
@@ -694,6 +700,18 @@ def maintenance():
 				partner.start_direct_chat(session)
 		session.commit()
 
+		# update legacy data
+		for msg in  session.query(Message).all():
+			if msg.media_attached:
+				if msg.content:
+					print("Message",msg,"contains both content and media_attached!")
+				else:
+					print("DB Legacy update!")
+					msg.content = msg.media_attached
+					msg.media_attached = None
+		session.commit()
+
+		# delete unused pics
 		prefix = "/media/"
 		media = [ prefix + filename for filename in os.listdir("media") ]
 
@@ -701,12 +719,15 @@ def maintenance():
 			if obj.image and (obj.image in media):
 				media.remove(obj.image)
 		for obj in session.query(Message).all():
-			if obj.media_attached and (obj.media_attached in media):
-				media.remove(obj.media_attached)
+			if obj.message_type in [MessageType.Image,MessageType.Video]:
+				if obj.content in media:
+					media.remove(obj.content)
+				if obj.media_attached in media:
+					media.remove(obj.media_attached)
 		for filepath in media:
 			realfile = 'media/' + filepath.split('/')[-1]
 			print('Delete',realfile)
-			os.remove(realfile)
+			#os.remove(realfile)
 
 engine = create_engine('sqlite:///database.sqlite')
 # ONLY TESTING

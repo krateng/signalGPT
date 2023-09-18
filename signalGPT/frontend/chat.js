@@ -209,8 +209,7 @@ window.appdata = {
 
 		post("/api/send_message",{
 				chat_id: this.selected_chat.uid,
-				content: content,
-				media: media,
+				content: media ? media : content,
 				messagetype: messagetype,
 				timestamp: timestamp
 			})
