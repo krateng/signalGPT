@@ -132,7 +132,7 @@ class Partner(Base):
 			data['instructions'] = results['prompt']
 			data['male'] = results['male']
 
-			data['image'] = create_character_image(results['img_prompt'],results['img_prompt_keywords'],male=data['male'])
+			data['image'] = create_character_image(results['img_prompt_keywords'],male=data['male'])
 
 		if "preferred_words" in data: data.pop("preferred_words")
 
@@ -669,8 +669,8 @@ class GroupChat(Chat):
 				replace.content = content
 				yield replace
 			else:
-				for content in [contentpart for contentpart in content.split("\n\n") if contentpart]:
-					m = self.add_message(author=responder,content=content)
+				for contpart in [contentpart for contentpart in content.split("\n\n") if contentpart]:
+					m = self.add_message(author=responder,content=contpart)
 					yield m
 					time.sleep(1)
 		if funccall := msg.get('function_call'):

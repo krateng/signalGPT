@@ -12,24 +12,7 @@ from .helper import save_debug_file
 
 create_char_message = '''
 I am going to give you some very basic notes on a character.
-Then return to me a json mapping with the following keys:
-'prompt': An in-depth description of this character in second person, e.g. 'You are a x year old man', 'You enjoy watching soccer' etc.
-You should make up missing details (e.g. expand on their character traits), but also objective facts (e.g. their full name, nationality, ethnicity, age or sex if not mentioned).
-Include some instructions about what language to use (e.g. heavy use of slang, mixing languages, dialect, style, emoji usage etc.)
-Avoid introducing unprompted platitudes and moralizing phrases about 'breaking norms', 'challenging expectations', 'self-expression', 'empowering', 'stigma' etc.
-Only include general instructions on how to react, behave, speak etc., no specific instructions what to do right now.
-'name': The informal name (e.g. first name, nickname, shortened name) of the character
-'male': simple boolean value, true if the character is male, false if they are female
-'handle': A handle they might use on social media. Do not include the @ sign. It must not contain spaces or non-ASCII characters.
-'bio': A short biography they might use on social media (no more than 15-20 words)
-'img_prompt': a description of the character's profile picture.
-Don't write in second person, simply describe what can be seen in the picture in a way that could be used as a prompt for an image-generating AI.
-Describe important details like gender, ethnicity, hair color, clothes, accessories, etc.
-Be concise and list important keywords
-'img_prompt_keywords': a json list of keywords to describe the character's profile picture from above.
-Use at least 10 keywords, but no more than 100
-
-Use these exact keys. Do not add anything else to your output (like acknowledging the task or reminding me that this is a fictional character etc.) The full post must be valid json.
+Please generate the full character with this information, making up missing details if necessary. Feel free to be a bit creative and add your own touches where the notes don't provide information.
 '''
 
 
@@ -40,16 +23,65 @@ def create_character_info(notes):
 
 
 
-	completion = openai.ChatCompletion.create(model=config['model_meta'],messages=messages)
+	completion = openai.ChatCompletion.create(
+		model=config['model_meta'],
+		messages=messages,
+		function_call={'name':"create_character"},
+		functions=[
+			{
+				'name': "create_character",
+				'description': "Is used to create a character for an AI language model to play.",
+				'parameters':{
+					'type': "object",
+					'required': ["prompt","name","male","handle","bio","img_prompt"],
+					'properties':{
+						'prompt':{
+							'type': "string",
+							'description': "An in-depth description of this character in second person, e.g. 'You are a x year old man', 'You enjoy watching soccer' etc. \
+								You should make up missing details (e.g. expand on their character traits), but also objective facts (e.g. their full name, nationality, ethnicity, age or sex if not mentioned).\
+								Include some instructions about what language to use (e.g. heavy use of slang, mixing languages, dialect, style, linguistic signature etc.)\
+								Avoid introducing unprompted platitudes and moralizing phrases that could impose your own ideas on the character.\
+								Only include general instructions on how to react, behave, speak etc., no specific instructions what to do right now."
+						},
+						'name':{
+							'type': "string",
+							'description': "The informal name (e.g. first name, nickname, shortened name) of the character"
+						},
+						'male':{
+							'type': "boolean",
+							'description': "true if the character is male, false if they are female"
+						},
+						'handle':{
+							'type': "string",
+							'description': "A handle they might use on social media. Do not include the @ sign. It must not contain spaces or non-ASCII characters."
+						},
+						'bio':{
+							'type': "string",
+							'description': "A short tagline / bio they might use on social media (no more than 10-15 words). Depending on personality, this can contain emojis."
+						},
+						'img_prompt_keywords':{
+							'type': "array",
+							'items':{'type':"string"},
+							'description': "a list of keywords to describe the character's profile picture.\
+								Simply describe what can be seen in the picture in a way that could be used as a prompt for an image-generating AI.\
+								Include important details like gender, ethnicity, hair color, clothes, accessories, etc.\
+								Go into detail and use at least 15 keywords. Important keywords should come first."
+						}
+					}
+				}
+			}
+		]
+
+	)
 	message = completion['choices'][0]['message']
-	info = json.loads(message['content'])
+	info = json.loads(message['function_call']['arguments'])
 
 	save_debug_file('charactercreate',{'prompt':notes,'result':info})
 
 	return info
 
 
-def create_character_image(prompt,keywords,male):
+def create_character_image(keywords,male):
 
 	# this is kinda necessary for anydream
 	# i wonder why ;)
@@ -58,11 +90,7 @@ def create_character_image(prompt,keywords,male):
 	else:
 		negative_prompt = ['male','man','boy']
 
-	prompt_pos = [prompt]
-	#prompt_pos = ",".join(keywords)
-	prompt_neg = negative_prompt
-
-	return create_image(prompt_pos,prompt_neg,'square')
+	return create_image(keywords,negative_prompt,'square')
 
 
 def create_image(prompt_pos=[],prompt_neg=[],format='sqaure'):
@@ -117,7 +145,7 @@ def create_image(prompt_pos=[],prompt_neg=[],format='sqaure'):
 		if req_id := j.get('requestId'):
 			pass
 		else:
-			save_debug_file('imageeneration',{'prompt_positive':prompt_pos,'prompt_negative':prompt_neg,'result':j})
+			save_debug_file('imageeneration',{'prompt_positive':prompt_pos,'prompt_negative':prompt_neg,'error_generate':True,'generate_request':{'json':j}})
 			return ""
 
 
@@ -136,10 +164,17 @@ def create_image(prompt_pos=[],prompt_neg=[],format='sqaure'):
 					save_debug_file('imageeneration',{'prompt_positive':prompt_pos,'prompt_negative':prompt_neg,'result':img})
 					return img
 			else:
-				save_debug_file('imageeneration',{'prompt_positive':prompt_pos,'prompt_negative':prompt_neg,'result':{
-					'json':r1.json(),
-					'headers':dict(r1.headers),
-					'cookies':dict(r1.cookies)
+				save_debug_file('imageeneration',{'prompt_positive':prompt_pos,'prompt_negative':prompt_neg,'error_resolve':True,'result':{
+					'generate_request':{
+						'json':r1.json(),
+						'headers':dict(r1.headers),
+						'cookies':dict(r1.cookies)
+					},
+					'resolve_request':{
+						'json':r2.json(),
+						'headers':dict(r2.headers),
+						'cookies':dict(r2.cookies)
+					}
 				}})
 				return ""
 
@@ -150,32 +185,79 @@ def create_image(prompt_pos=[],prompt_neg=[],format='sqaure'):
 
 
 pick_responder_prompt = '''
-I'm going to give you a chat log. Please pick who you think would be the next responder in the chat based on context.
-Return your result in fully valid json with the keys:
-* responder: The exact name of the responder.
-* confidence: a percentage value from 0-100 (as integer, not including the % symbol) how certain you are that this will be the next responder
-* reason: a short explanation why you made this choice
-
-Please include nothing else but this json in your response.
+I'm going to give you a chat log. Please pick who you think would be the next responder in the chat based on context, but consider that not all chat members are available to pick.
 '''
 
 def guess_next_responder(msgs,people,user):
 
 	ppl = {p.name:p for p in people}
 
+	if msgs:
+		lastresponder = msgs[-1].get_author().name
+		ppl.pop(lastresponder)
+
 	messages = [
 		{"content":pick_responder_prompt,"role":"system"},
-		{"role":"system","content":"The possible responders are: " + ', '.join(ppl.keys()) + f". {user.name} is not a valid pick."},
-		{"role":"user","content":"Chatlog:\n\n" + '\n'.join(msg.get_author().name + ": " + msg.display_for_textonly_model() for msg in msgs[-30:])}
+		{"role":"system","content":"The possible responders are: " + ', '.join(ppl.keys())},
+		{"role":"user","content":"Chatlog:\n\n" + '\n'.join(msg.get_author().name + ": " + msg.display_for_textonly_model() for msg in msgs[-20:])}
 	]
 
 	#from pprint import pprint
 	#pprint(messages)
 
-	completion = openai.ChatCompletion.create(model=config['model_meta'],messages=messages)
+	completion = openai.ChatCompletion.create(
+		model=config['model_meta'],
+		messages=messages,
+		function_call={'name':"pick_responder"},
+		functions=[
+			{
+				'name': "pick_responder",
+				'description': "Select who should be the next responder in the group chat",
+				'parameters': {
+					'type': "object",
+					'required': ["responder"],
+					'properties':{
+#						'responder':{
+#							'type':"string",
+#							'enum': list(ppl.keys()),
+#							'description': "The name of the selected responder. Can only be " + ', '.join(ppl.keys())
+#						},
+#						'reason':{
+#							'type':"string",
+#							'description': "A short explanation why you think this character is most likely to respond next."
+#						},
+#						'confidence':{
+#							'type':"number",
+#							'description': "a percentage value how certain you are that this will indeed be the next responder"
+#						},
+						'responder_chances':{
+							'type': "object",
+							'required': list(ppl.keys()),
+							'properties':{
+								p:{
+									'type': "object",
+									'properties':{
+										'chance':{
+											'type': "number",
+											'description': f"Likelihood in % for {p} to be the next responder."
+										},
+										'reasoning':{
+											'type': "string",
+											'description': "A short explanation why this character is likely or unlikely to be the next responder"
+										}
+									}
+
+								}
+								for p in ppl
+							}
+						}
+					}
+				}
+			}
+		])
 	message = completion['choices'][0]['message']
 	try:
-		info = json.loads(message['content'])
+		info = json.loads(message['function_call']['arguments'])
 	except:
 		print("Invalid JSON response")
 		save_debug_file('responderpick',{'messages':messages,'raw_result':message['content']})
@@ -184,8 +266,9 @@ def guess_next_responder(msgs,people,user):
 
 	save_debug_file('responderpick',{'messages':messages,'result':info})
 
-	if info['responder'] in ppl:
-		return ppl[info['responder']]
+	responder = max(info['responder_chances'], key=lambda x:info['responder_chances'][x]['chance'])
+	if responder in ppl:
+		return ppl[responder]
 	else:
 		return None
 
