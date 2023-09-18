@@ -190,11 +190,14 @@ I'm going to give you a chat log. Please pick who you think would be the next re
 
 def guess_next_responder(msgs,people,user):
 
+	USE_CHANCE_MECHANIC = False
+	ALLOW_LAST_RESPONDER = True
+
 	ppl = {p.name:p for p in people}
 
-	if msgs:
+	if msgs and (not ALLOW_LAST_RESPONDER):
 		lastresponder = msgs[-1].get_author().name
-		ppl.pop(lastresponder)
+		if lastresponder in ppl: ppl.pop(lastresponder)
 
 	messages = [
 		{"content":pick_responder_prompt,"role":"system"},
@@ -215,21 +218,8 @@ def guess_next_responder(msgs,people,user):
 				'description': "Select who should be the next responder in the group chat",
 				'parameters': {
 					'type': "object",
-					'required': ["responder"],
+					'required': ["responder_chances" if USE_CHANCE_MECHANIC else "responder"],
 					'properties':{
-#						'responder':{
-#							'type':"string",
-#							'enum': list(ppl.keys()),
-#							'description': "The name of the selected responder. Can only be " + ', '.join(ppl.keys())
-#						},
-#						'reason':{
-#							'type':"string",
-#							'description': "A short explanation why you think this character is most likely to respond next."
-#						},
-#						'confidence':{
-#							'type':"number",
-#							'description': "a percentage value how certain you are that this will indeed be the next responder"
-#						},
 						'responder_chances':{
 							'type': "object",
 							'required': list(ppl.keys()),
@@ -251,6 +241,20 @@ def guess_next_responder(msgs,people,user):
 								for p in ppl
 							}
 						}
+					} if USE_CHANCE_MECHANIC else {
+						'responder':{
+							'type':"string",
+							'enum': list(ppl.keys()),
+							'description': "The name of the selected responder. Can only be " + ', '.join(ppl.keys())
+						},
+						'reason':{
+							'type':"string",
+							'description': "A short explanation why you think this character is most likely to respond next."
+						},
+						'confidence':{
+							'type':"number",
+							'description': "a percentage value how certain you are that this will indeed be the next responder"
+						}
 					}
 				}
 			}
@@ -260,13 +264,17 @@ def guess_next_responder(msgs,people,user):
 		info = json.loads(message['function_call']['arguments'])
 	except:
 		print("Invalid JSON response")
-		save_debug_file('responderpick',{'messages':messages,'raw_result':message['content']})
+		save_debug_file('responderpick',{'messages':messages,'raw_result':message})
 		return None
 
 
 	save_debug_file('responderpick',{'messages':messages,'result':info})
 
-	responder = max(info['responder_chances'], key=lambda x:info['responder_chances'][x]['chance'])
+	if USE_CHANCE_MECHANIC:
+		responder = max(info['responder_chances'], key=lambda x:info['responder_chances'][x]['chance'])
+	else:
+		responder = info['responder']
+
 	if responder in ppl:
 		return ppl[responder]
 	else:

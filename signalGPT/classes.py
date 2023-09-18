@@ -262,6 +262,13 @@ class Message(Base):
 			return ""
 
 
+class ChatSummary(Base):
+	__tablename__ = "chatsummaries"
+
+	uid = Column(Integer,primary_key=True)
+	chat_uid = Column(String,ForeignKey('chats.uid'))
+	chat = relationship('Chat',backref='summaries')
+
 class Chat(Base):
 	__tablename__ = 'chats'
 
@@ -294,8 +301,12 @@ class Chat(Base):
 
 	@ai_accessible_function
 	def send_image(self,author,
-		prompt: (('array','string'),True,"Keywords that objectively describe what the image shows to someone who has no context or knowledge of you or this chat. You may use quite a few keywords here and go into detail.")=[],
+		prompt: (('array','string'),True,"Keywords that objectively describe what the image shows to someone who has no context or knowledge of you or this chat.\
+			If the picture includes yourself or other chat participants, make sure the keywords describe your or their appearance to the best of your knowledge. \
+			Don't just add your name, add things like your ethnicity, hair color etc.\
+			You may use quite a few keywords here and go into detail.")=[],
 		negative_prompt: (('array','string'),False,"Keywords for undesirable traits or content of the picture.") =[],
+		short_desc: (('string',),True,"A short description of what the picture shows for visually impaired users.") ="",
 		landscape: (('boolean',),False,"Whether to send a picture in landscape mode instead of portrait mode")=False
 	):
 		"Can be used to send an image in the chat. It should be used very rarely, only when sending a picture fits the context or is requested."
@@ -369,6 +380,46 @@ class Chat(Base):
 	def print(self):
 		for msg in self.messages:
 			msg.print()
+
+
+	def get_response(self,replace=None,model=config['model_base'],responder=None):
+		if not responder:
+			responder = replace.author if replace else self.pick_next_responder()
+
+		messages = self.get_openai_msg_list(from_perspective=responder,upto=replace)
+
+		completion = openai.ChatCompletion.create(
+			model=model,
+			messages=messages,
+			logit_bias=generate_bias(config.get('preferred_words',[]),model),
+			functions=[f['schema'] for f in self.get_ai_accessible_funcs().values()]
+		)
+
+
+		msg = completion['choices'][0]['message']
+		cost = completion['usage']
+		prices = COST[model]
+		self.total_paid += prices[0] * cost['prompt_tokens']
+		self.total_paid += prices[1] * cost['completion_tokens']
+
+		save_debug_file('messagerequest',{'messages':messages,'result':msg})
+
+		if content := msg['content']:
+			content = self.clean_content(content,responder)
+
+			if replace:
+				replace.content = content
+				replace.message_type = MessageType.Text
+				yield replace
+			else:
+				for contpart in [contentpart for contentpart in content.split("\n\n") if contentpart]:
+					m = self.add_message(author=responder,content=contpart)
+					yield m
+					time.sleep(1)
+		if funccall := msg.get('function_call'):
+			args = json.loads(funccall['arguments'])
+			funcs = self.get_ai_accessible_funcs()
+			yield from funcs[funccall['name']]['func'](self=self,author=responder,**args)
 
 	def cmd_chat(self,session):
 		self.print()
@@ -452,54 +503,21 @@ class DirectChat(Chat):
 
 
 
-	def get_openai_msg_list(self,upto=None):
+	def get_openai_msg_list(self,upto=None,from_perspective=None):
 		result = list(self.get_openai_messages(upto=upto))
 		#from pprint import pprint
 		#pprint(result)
-		save_debug_file('messagerequest',result)
 		return result
 
 
 
 
 
-
+	def clean_content(self,content,responder):
+		return content
 
 	def get_response(self,replace=None,model=config['model_base']):
-
-		self.partner.print_type_indicator()
-		completion = openai.ChatCompletion.create(
-			model=model,
-			messages=self.get_openai_msg_list(upto=replace),
-			logit_bias=generate_bias(config.get('preferred_words',[]),model),
-			functions=[f['schema'] for f in self.get_ai_accessible_funcs().values()]
-		)
-
-		msg = completion['choices'][0]['message']
-		cost = completion['usage']
-		prices = COST[model]
-		self.total_paid += (prices[0] * cost['prompt_tokens'])
-		self.total_paid += (prices[1] * cost['completion_tokens'])
-
-		pprint(msg)
-
-
-		if content := msg.get('content'):
-			print("\r",end="")
-
-			if replace:
-				replace.content = content
-				yield replace
-			else:
-				for contpart in [contentpart for contentpart in content.split("\n\n") if contentpart]:
-					m = self.add_message(author=self.partner,content=contpart)
-					yield m
-					self.partner.print_message(contpart)
-					time.sleep(1)
-		if funccall := msg.get('function_call'):
-			args = json.loads(funccall['arguments'])
-			funcs = self.get_ai_accessible_funcs()
-			yield from funcs[funccall['name']]['func'](self=self,author=self.partner,**args)
+		return super().get_response(replace=replace,model=model,responder=self.partner)
 
 class GroupChat(Chat):
 	__tablename__ = 'groupchats'
@@ -605,11 +623,11 @@ class GroupChat(Chat):
 				'content': self.style_reminder_prompt.format(character_name=partner.name)
 			}
 
-	def get_openai_msg_list(self,partner,upto=None):
-		result = list(self.get_openai_messages(partner=partner,upto=upto))
+	def get_openai_msg_list(self,from_perspective,upto=None):
+		result = list(self.get_openai_messages(partner=from_perspective,upto=upto))
 		#from pprint import pprint
 		#pprint(result)
-		save_debug_file('messagerequest',result)
+
 		return result
 
 
@@ -642,41 +660,14 @@ class GroupChat(Chat):
 
 		return responder
 
-	def get_response(self,replace=None,model=config['model_base']):
-		responder = replace.author if replace else self.pick_next_responder()
 
-		completion = openai.ChatCompletion.create(
-			model=model,
-			messages=self.get_openai_msg_list(responder,upto=replace),
-			logit_bias=generate_bias(config.get('preferred_words',[]),model),
-			functions=[f['schema'] for f in self.get_ai_accessible_funcs().values()]
-		)
+	def clean_content(self,content,responder):
+		unwanted_prefix = f"{responder.name}: "
+		if content.startswith(unwanted_prefix):
+			content = content[len(unwanted_prefix):]
+		return content
 
 
-		msg = completion['choices'][0]['message']
-		cost = completion['usage']
-		prices = COST[model]
-		self.total_paid += prices[0] * cost['prompt_tokens']
-		self.total_paid += prices[1] * cost['completion_tokens']
-
-
-		if content := msg['content']:
-			unwanted_prefix = f"{responder.name}: "
-			if content.startswith(unwanted_prefix):
-				content = content[len(unwanted_prefix):]
-
-			if replace:
-				replace.content = content
-				yield replace
-			else:
-				for contpart in [contentpart for contentpart in content.split("\n\n") if contentpart]:
-					m = self.add_message(author=responder,content=contpart)
-					yield m
-					time.sleep(1)
-		if funccall := msg.get('function_call'):
-			args = json.loads(funccall['arguments'])
-			funcs = self.get_ai_accessible_funcs()
-			yield from funcs[funccall['name']]['func'](self=self,author=responder,**args)
 
 
 	def add_person(self,person):
