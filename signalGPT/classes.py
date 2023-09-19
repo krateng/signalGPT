@@ -309,6 +309,7 @@ class Chat(Base):
 			Don't just add your name, add things like your ethnicity, hair color etc.\
 			You may use quite a few keywords here and go into detail.")=[],
 		negative_prompt: (('array','string'),False,"Keywords for undesirable traits or content of the picture.") =[],
+		selfie: (('boolean',),True,"Whether this is a picture of yourself.")=False,
 		short_desc: (('string',),True,"A short description of what the picture shows for visually impaired users.") ="",
 		landscape: (('boolean',),False,"Whether to send a picture in landscape mode instead of portrait mode")=False
 	):
@@ -596,10 +597,20 @@ class GroupChat(Chat):
 			'role':"system",
 			'content': f"Group Chat Name: {self.name}\nGroup Chat Members: {', '.join(p.name for p in self.members + [Protagonist])}"
 		}
-		yield {
-			'role':"user",
-			'content':f"[{Protagonist.name} has created the chat]"
-		}
+		#yield {
+		#	'role':"user",
+		#	'content':f"[{Protagonist.name} has created the chat]"
+		#}
+
+		# chat before joining is not visible
+		index = next((i for i, msg in enumerate(messages) if msg.message_type == MessageType.MetaJoin and msg.author == partner), None)
+		if index is not None:
+			messages = messages[index:]
+			yield {
+			    'role': "system",
+			    'content': "[Previous chat history not visible]"
+			}
+
 
 		lasttimestamp = math.inf
 		for msg in messages:
@@ -727,7 +738,7 @@ def maintenance():
 		for filepath in media:
 			realfile = 'media/' + filepath.split('/')[-1]
 			print('Delete',realfile)
-			#os.remove(realfile)
+			os.remove(realfile)
 
 engine = create_engine('sqlite:///database.sqlite')
 # ONLY TESTING

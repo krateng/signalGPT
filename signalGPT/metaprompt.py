@@ -66,6 +66,20 @@ def create_character_info(notes):
 								Simply describe what can be seen in the picture in a way that could be used as a prompt for an image-generating AI.\
 								Include important details like gender, ethnicity, hair color, clothes, accessories, etc.\
 								Go into detail and use at least 15 keywords. Important keywords should come first."
+						},
+						'appearance_prompt':{
+							'type': "array",
+							'items':{'type':"string"},
+							'description': "a list of keywords to describe the character's general looks.\
+								Simply describe their features in a way that could be used as a prompt for an image-generating AI.\
+								Include important details like gender, ethnicity, hair color, style etc., but not image-specific details like pose, mood, lighting.\
+								Go into detail and use at least 10 keywords. Important keywords should come first."
+						},
+						'voice_prompt':{
+							'type': "array",
+							'items':{'type':"string"},
+							'description': "a list of keywords to describe the character's voice.\
+								Simply describe its features in a way that could be used as a prompt for a voice-generating AI."
 						}
 					}
 				}
@@ -202,7 +216,7 @@ def guess_next_responder(msgs,people,user):
 	messages = [
 		{"content":pick_responder_prompt,"role":"system"},
 		{"role":"system","content":"The possible responders are: " + ', '.join(ppl.keys())},
-		{"role":"user","content":"Chatlog:\n\n" + '\n'.join(msg.get_author().name + ": " + msg.display_for_textonly_model() for msg in msgs[-20:])}
+		{"role":"user","content":"Chatlog:\n\n" + '\n'.join(msg.get_author().name + ": " + msg.display_for_textonly_model() for msg in msgs[-10:])}
 	]
 
 	#from pprint import pprint

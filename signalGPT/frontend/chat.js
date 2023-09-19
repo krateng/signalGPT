@@ -268,7 +268,7 @@ window.appdata = {
 			element.classList.remove('editing');
 			element.contentEditable = false;
 			if (element.dataset.nohtml) {
-				element.innerHTML = element.textContent;
+				element.innerHTML = element.innerText;
 			}
 			var key = element.dataset.entitykey;
 			console.log('calling',func,'with',element.innerHTML,key);
