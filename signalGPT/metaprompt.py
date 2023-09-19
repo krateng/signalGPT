@@ -33,7 +33,7 @@ def create_character_info(notes):
 				'description': "Is used to create a character for an AI language model to play.",
 				'parameters':{
 					'type': "object",
-					'required': ["prompt","name","male","handle","bio","img_prompt"],
+					'required': ["prompt","name","male","handle","bio","img_prompt_keywords"],
 					'properties':{
 						'prompt':{
 							'type': "string",
@@ -41,7 +41,8 @@ def create_character_info(notes):
 								You should make up missing details (e.g. expand on their character traits), but also objective facts (e.g. their full name, nationality, ethnicity, age or sex if not mentioned).\
 								Include some instructions about what language to use (e.g. heavy use of slang, mixing languages, dialect, style, linguistic signature etc.)\
 								Avoid introducing unprompted platitudes and moralizing phrases that could impose your own ideas on the character.\
-								Only include general instructions on how to react, behave, speak etc., no specific instructions what to do right now."
+								Only include general instructions on how to react, behave, speak etc., no specific instructions what to do right now.\
+								Be creative and feel free to give the character unique traits, speech patterns, habits etc."
 						},
 						'name':{
 							'type': "string",

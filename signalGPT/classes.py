@@ -35,6 +35,13 @@ COST = {
 }
 
 
+def now():
+	return int(datetime.now(timezone.utc).timestamp())
+
+def describe_time(timestamp):
+	time = datetime.fromtimestamp(timestamp)
+	return time.strftime('%A %I %p')
+
 def generate_uid():
 	uid = ""
 	for i in range(32):
@@ -350,7 +357,7 @@ class Chat(Base):
 			m.author = None
 		else:
 			m.author = author
-		m.timestamp = timestamp or int(datetime.utcnow().replace(tzinfo=timezone.utc).timestamp())
+		m.timestamp = timestamp or now()
 		return m
 
 	def get_messages_upto(self,upto):
@@ -478,6 +485,8 @@ class DirectChat(Chat):
 	def get_openai_messages(self,upto=None):
 		messages = self.get_messages(stop_before=upto)[-MAX_MESSAGES_IN_CONTEXT:]
 
+		timenow = upto.timestamp if upto else now()
+
 		yield {
 			'role':"system",
 			'content':self.partner.get_prompt()
@@ -496,13 +505,19 @@ class DirectChat(Chat):
 			if (msg.timestamp - lasttimestamp) > (config['ai_prompting_config']['message_gap_info_min_hours']*3600):
 				yield {
 					'role':"system",
-					'content':"{hours} hours pass...".format(hours=(msg.timestamp - lasttimestamp)//3600)
+					'content':"{hours} hours pass... {now}".format(hours=(timenow - lasttimestamp)//3600,now=describe_time(msg.timestamp))
 				}
 			lasttimestamp = msg.timestamp
 
 			yield {
 				'role':"user" if (msg.is_from_user()) else "assistant",
 				'content': msg.display_for_textonly_model()
+			}
+
+		if (timenow - lasttimestamp) > (config['ai_prompting_config']['message_gap_info_min_hours']*3600):
+			yield {
+				'role':"system",
+				'content':"{hours} hours pass... {now}".format(hours=(timenow - lasttimestamp)//3600,now=describe_time(timenow))
 			}
 
 
@@ -581,6 +596,8 @@ class GroupChat(Chat):
 	def get_openai_messages(self,partner,upto=None):
 		messages = self.get_messages(stop_before=upto)[-MAX_MESSAGES_IN_CONTEXT:]
 
+		timenow = upto.timestamp if upto else now()
+
 		yield {
 			'role':"system",
 			'content':partner.get_prompt()
@@ -617,7 +634,7 @@ class GroupChat(Chat):
 			if (msg.timestamp - lasttimestamp) > (config['ai_prompting_config']['message_gap_info_min_hours']*3600):
 				yield {
 					'role':"system",
-					'content':"{hours} hours pass...".format(hours=(msg.timestamp - lasttimestamp)//3600)
+					'content':"{hours} hours pass... {now}".format(hours=(timenow - lasttimestamp)//3600,now=describe_time(msg.timestamp))
 				}
 			lasttimestamp = msg.timestamp
 
@@ -631,6 +648,12 @@ class GroupChat(Chat):
 					'role':"user" if (msg.get_author() != partner) else "assistant",
 					'content': msg.display_for_textonly_model()
 				}
+
+		if (timenow - lasttimestamp) > (config['ai_prompting_config']['message_gap_info_min_hours']*3600):
+			yield {
+				'role':"system",
+				'content':"{hours} hours pass... {now}".format(hours=(timenow - lasttimestamp)//3600,now=describe_time(timenow))
+			}
 
 		if len(self.members) > 1:
 			yield {
@@ -692,7 +715,7 @@ class GroupChat(Chat):
 				message_type = MessageType.MetaJoin,
 				author = person,
 				chat = self,
-				timestamp = int(datetime.utcnow().replace(tzinfo=timezone.utc).timestamp())
+				timestamp = now()
 			))
 
 
