@@ -114,6 +114,11 @@ span.mention {
 	color:lightblue;
 }
 
+.contact_in_message {
+	background-color:darkslateblue;
+	width: 400px;
+}
+
 .contact {
     display: flex;
     align-items: center;
@@ -239,16 +244,22 @@ img.profilepic {
 }
 
 .message img.profilepic {
+	cursor:pointer;
+}
+
+.message > img.profilepic {
+		/* not for the img inside a contact_in_message */
     width: 45px;
     height: 45px;
-		cursor:pointer;
+
 }
 
 .message.received {
     flex-direction: row;
 }
 
-.message.received img.profilepic {
+.message.received > img.profilepic {
+		/* not for the img inside a contact_in_message */
     margin-right: 15px;
 }
 
@@ -256,7 +267,8 @@ img.profilepic {
     flex-direction: row-reverse;
 }
 
-.message.sent img.profilepic {
+.message.sent > img.profilepic {
+		/* not for the img inside a contact_in_message */
     margin-left: 15px;
 }
 

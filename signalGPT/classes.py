@@ -203,6 +203,7 @@ class MessageType(enum.Enum):
 	Text = 1
 	Image = 2
 	Video = 3
+	Contact = 8
 	MetaJoin = 10
 	MetaLeave = 11
 	MetaRename = 20
@@ -247,6 +248,7 @@ class Message(Base):
 			'own':(self.get_author() is Protagonist),
 			'chat': {'ref':'chats','key':self.chat.uid},
 			'content':self.content or "",
+			'linked_entity': {'ref': 'contacts','key':self.content } if self.message_type == MessageType.Contact else None,
 			'message_type':self.message_type.name if self.message_type else None,
 			#'media_attached':self.media_attached,
 			#'media_type':get_media_type(self.media_attached),
@@ -259,6 +261,8 @@ class Message(Base):
 			return self.content
 		elif self.message_type in [MessageType.Image, MessageType.Video]:
 			return f"[{self.message_type.name} attached: {self.content_secondary}]"
+		elif self.message_type == MessageType.Contact:
+			return f"[Contact attached: @{self.content}]"
 		elif self.message_type == MessageType.MetaJoin:
 			return "[has been added to chat]"
 		elif self.message_type == MessageType.MetaLeave:
@@ -320,7 +324,8 @@ class Chat(Base):
 		short_desc: (('string',),True,"A short description of what the picture shows for visually impaired users.") ="",
 		landscape: (('boolean',),False,"Whether to send a picture in landscape mode instead of portrait mode")=False
 	):
-		"Can be used to send an image in the chat. It should be used very rarely, only when sending a picture fits the context or is requested."
+		"Send an image in the chat. It should be used very rarely, only when sending a picture fits the context or is requested.\
+		You also cannot randomly send pictures of other people, unless context indicates that you're currently in the same loction together."
 		prompt_pos = prompt
 		prompt_neg = negative_prompt
 		format = 'landscape' if landscape else 'portrait'
@@ -329,6 +334,23 @@ class Chat(Base):
 		m = self.add_message(author=author,message_type=MessageType.Image,content=img,content_secondary=short_desc)
 		yield m
 
+	@ai_accessible_function
+	def send_contact(self,author,
+		name: (('string',),True,"The contact's informal name - prename or nickname"),
+		male: (('boolean',),True,"True if the contact is male, false if they are female."),
+		short_description: (('string',),True,"Objectively describe the contact. Include name and sex again, but also character, ethnicity, looks, etc. without any relation to the current chat context.\
+		Please do not editorialize this according to your character, but write neutrally.")
+	):
+		"Send contact info of a person you know to the chat. It should only be used when specifically requested by a chat partner."
+
+
+		with Session() as session:
+			char = Partner(from_desc=short_description)
+			handle = char.handle
+			session.add(char)
+			session.commit()
+		m = self.add_message(author=author,message_type=MessageType.Contact,content=handle)
+		yield m
 
 	def readable_cost(self):
 		cents = self.total_paid // 10000
@@ -725,11 +747,16 @@ class GroupChat(Chat):
 def maintenance():
 	with Session() as session:
 
-		# remove chat-less contacts
+		# remove contacts with no chats and no messages sharing them
 		for partner in session.query(Partner).all():
 			if (not partner.chats) and (not partner.direct_chat) and (not partner.friend):
-				print("Deleting",partner.name)
-				session.delete(partner)
+				for msg in session.query(Message).all():
+					if msg.message_type == MessageType.Contact and msg.content == partner.handle:
+						print("Not deleting",partner.name,"because they are sent as a contact.")
+						break
+				else:
+					print("Deleting",partner.name)
+					session.delete(partner)
 			if partner.friend:
 				partner.start_direct_chat(session)
 		session.commit()

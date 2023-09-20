@@ -139,7 +139,7 @@ window.appdata = {
 	selected_newchar_male:false,
 	selected_model_advanced:false,
 	selectChat(uid){
-			if (this.chats[uid].full_loaded) {
+			if (this.chats[uid]?.full_loaded) {
 				this.selected_chat = this.chats[uid];
 				var chatwindow = document.getElementById('chat');
 
@@ -431,6 +431,17 @@ window.appdata = {
 	},
 
 	/// CONTACTS
+	getContact(handle) {
+		return fetch("/api/contact/" + handle)
+			.then(response=>response.json())
+			.then(result=>{
+				console.log(result);
+				this.contacts[result.handle] = this.contacts[result.handle] ?? {};
+				Object.assign(this.contacts[result.handle],result);
+				this.resolveReferences(this.contacts[handle]);
+
+			})
+	},
 	patchContact(data) {
 		return patch("/api/contact",data)
 			.then(response=>response.json())

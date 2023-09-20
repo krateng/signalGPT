@@ -127,6 +127,14 @@ def api_regenerate_message():
 
 
 # CONTACT
+@get("/api/contact/<handle>")
+def api_get_contact(handle):
+	with Session() as session:
+		print('return',handle)
+		char = session.query(Partner).where(Partner.handle == handle).first()
+		print('result',char)
+		return char.serialize()
+
 @post("/api/contact")
 def api_post_contact():
 	info = request.json
