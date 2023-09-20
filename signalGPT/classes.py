@@ -121,6 +121,7 @@ class Partner(Base):
 	bio = Column(String)
 	image = Column(String)
 	instructions = Column(String)
+	introduction_context = Column(String)
 	#linguistic_signature = Column(String) # comma separated
 	user_defined = Column(Boolean)
 	friend = Column(Boolean,default=False)
@@ -339,16 +340,20 @@ class Chat(Base):
 		name: (('string',),True,"The contact's informal name - prename or nickname"),
 		male: (('boolean',),True,"True if the contact is male, false if they are female."),
 		short_description: (('string',),True,"Objectively describe the contact. Include name and sex again, but also character, ethnicity, looks, etc. without any relation to the current chat context.\
-		Please do not editorialize this according to your character, but write neutrally.")
+		Please do not editorialize this according to your character, but write neutrally."),
+		context_introduction: (('string',),True,"A summary directed at the new contact (in second person), detailing all interactions and relevant events involving them up to this point (even their own actions and opinions), speaking as a neutral instructor (not yourself).")
 	):
-		"Send contact info of a person you know to the chat. It should only be used when specifically requested by a chat partner."
+		"Send contact info of a person you know to the chat. It should only be used when a chat partner explicitly requests their contact details, not simply everytime someone mentions another person."
 
 
 		with Session() as session:
-			char = Partner(from_desc=short_description)
+			char = session.query(Partner).where(Partner.name==name).first()
+			if not char:
+				char = Partner(from_desc=short_description,introduction_context=context_introduction)
+				session.add(char)
+				session.commit()
 			handle = char.handle
-			session.add(char)
-			session.commit()
+
 		m = self.add_message(author=author,message_type=MessageType.Contact,content=handle)
 		yield m
 
@@ -521,6 +526,12 @@ class DirectChat(Chat):
 			'role':"system",
 			'content':self.userinfo_prompt.format(desc=config['user']['description'])
 		}
+
+		if len(messages) < 50 and self.partner.introduction_context:
+			yield {
+				'role': "system",
+				'content': "Context for the new chat: " + self.partner.introduction_context
+			}
 
 		lasttimestamp = math.inf
 		for msg in messages:
