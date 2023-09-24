@@ -15,6 +15,7 @@ from pprint import pprint
 
 
 from sqlalchemy import create_engine, Table, Column, Integer, String, Boolean, Enum, MetaData, ForeignKey, exc, func
+from sqlalchemy.types import TypeDecorator, Text
 from sqlalchemy.orm import sessionmaker, relationship
 from sqlalchemy.ext.declarative import declarative_base
 
@@ -22,6 +23,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from .__init__ import config
 from .metaprompt import create_character_info, create_character_image, guess_next_responder, summarize_chat, create_image
 from .helper import save_debug_file
+from . import memes
 
 
 
@@ -98,11 +100,29 @@ def ai_accessible_function(func):
 	}
 	return func
 
+def lazy(func):
+	func._lazy = True
+	return func
 
 
 
 
 Base = declarative_base()
+
+
+# CUSTOM COLUMN TYPE
+class JsonDict(TypeDecorator):
+    impl = Text
+
+    def process_bind_param(self, value, dialect):
+        if value is not None:
+            value = json.dumps(value)
+        return value
+
+    def process_result_value(self, value, dialect):
+        if value is not None:
+            value = json.loads(value)
+        return value
 
 # ASSOCIATIONS
 chat_to_member = Table('chat_members',Base.metadata,
@@ -122,6 +142,7 @@ class Partner(Base):
 	image = Column(String)
 	instructions = Column(String)
 	introduction_context = Column(String)
+	prompts = Column(JsonDict)
 	#linguistic_signature = Column(String) # comma separated
 	user_defined = Column(Boolean)
 	friend = Column(Boolean,default=False)
@@ -296,7 +317,11 @@ class Chat(Base):
 
 
 
-	style_prompt = "Write as if you are using a messaging / chat app. Depending on your personality, this can mean incomplete sentences, spelling mistakes, improper grammar, abbreviations, ellipses, and use of emojis. It also means casual and informal language. Remember, you are a person, not just an assistant. No need to always be positive and agreeable. Speak your mind, have realistic interactions. Avoid any formatting other than bold and cursive text."
+	style_prompt = "Write as if you are using a messaging / chat app.\
+		Depending on your personality, this can mean incomplete sentences, spelling mistakes, improper grammar, abbreviations, ellipses, and use of emojis.\
+		It also means casual and informal language. You should never be too verbose.\
+		Remember, you are a person, not just an assistant. No need to always be positive and agreeable. Speak your mind, have realistic interactions.\
+		Avoid any formatting other than bold and cursive text."
 
 	userinfo_prompt = "About me: {desc}. This is simply something you know about me, no need to explicitly mention it."
 
@@ -310,7 +335,7 @@ class Chat(Base):
 			fulldict.update(baseclass.__dict__)
 
 		funcs = [f for f in fulldict.values() if getattr(f,'_aiaccessible',False)]
-		funcs = {f.__name__:{'schema':f._schema,'func':f} for f in funcs}
+		funcs = {f.__name__:{'schema':f._schema,'func':f,'lazy':getattr(f,'_lazy',False)} for f in funcs}
 		return funcs
 
 
@@ -326,7 +351,8 @@ class Chat(Base):
 		landscape: (('boolean',),False,"Whether to send a picture in landscape mode instead of portrait mode")=False
 	):
 		"Send an image in the chat. It should be used very rarely, only when sending a picture fits the context or is requested.\
-		You also cannot randomly send pictures of other people, unless context indicates that you're currently in the same loction together."
+		You also cannot randomly send pictures of other people, unless context indicates that you're currently in the same loction together.\
+		Do not simply send a picture just because the previous message is a picture."
 		prompt_pos = prompt
 		prompt_neg = negative_prompt
 		format = 'landscape' if landscape else 'portrait'
@@ -356,6 +382,21 @@ class Chat(Base):
 
 		m = self.add_message(author=author,message_type=MessageType.Contact,content=handle)
 		yield m
+
+
+	@ai_accessible_function
+	@lazy
+	def send_meme(self,author,resolve=None,args={}):
+		"Send a meme"
+
+		customfuncs = memes.get_functions()
+		if resolve:
+			func = customfuncs[resolve]['func']
+			result = func(**args)
+			m = self.add_message(author=author,message_type=MessageType.Image,content=result['image'],content_secondary=result['desc'])
+			return [m]
+		else:
+			return customfuncs
 
 	def readable_cost(self):
 		cents = self.total_paid // 10000
@@ -430,7 +471,8 @@ class Chat(Base):
 			model=model,
 			messages=messages,
 			logit_bias=generate_bias(config.get('preferred_words',[]),model),
-			functions=[f['schema'] for f in self.get_ai_accessible_funcs().values()]
+			functions=[f['schema'] for f in self.get_ai_accessible_funcs().values()],
+			function_call=('none' if replace else 'auto')
 		)
 
 
@@ -457,7 +499,22 @@ class Chat(Base):
 		if funccall := msg.get('function_call'):
 			args = json.loads(funccall['arguments'])
 			funcs = self.get_ai_accessible_funcs()
-			yield from funcs[funccall['name']]['func'](self=self,author=responder,**args)
+			called_func = funcs[funccall['name']]
+			if called_func['lazy']:
+				actual_functions = called_func['func'](self=self,author=responder)
+				# this is a func that has no args yet to save tokens
+				# once the AI decides to call it, we ask it again, this time with details
+				completion = openai.ChatCompletion.create(
+					model=model,
+					messages=messages,
+					functions=[f['schema'] for f in actual_functions.values()]
+				)
+				msg2 = completion['choices'][0]['message']
+				save_debug_file('messagerequest',{'messages':messages,'result':msg,'result_followup':msg2})
+				funccall2 = msg2.get('function_call')
+				yield from called_func['func'](self=self,author=responder,resolve=funccall2['name'],args=json.loads(funccall2['arguments']))
+			else:
+				yield from called_func['func'](self=self,author=responder,**args)
 
 	def cmd_chat(self,session):
 		self.print()
@@ -800,6 +857,11 @@ def maintenance():
 			realfile = 'media/' + filepath.split('/')[-1]
 			print('Delete',realfile)
 			os.remove(realfile)
+
+
+
+
+
 
 engine = create_engine('sqlite:///database.sqlite')
 # ONLY TESTING

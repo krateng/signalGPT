@@ -525,8 +525,11 @@ window.appdata = {
 				var i = this.selected_chat.messages.length;
 				while(i--) {
 					if (this.selected_chat.messages[i].uid == msg_uid) {
-						this.selected_chat.messages[i].content = result.content;
-						this.selected_chat.messages[i].display_simplified = result.display_simplified;
+						// just so this doesn't get overwritten by the yet-to-be-resolved-reference
+						result.author = this.selected_chat.messages[i].author;
+						Object.assign(this.selected_chat.messages[i],result);
+						//this.selected_chat.messages[i].content = result.content;
+						//this.selected_chat.messages[i].display_simplified = result.display_simplified;
 						break;
 					}
 				}

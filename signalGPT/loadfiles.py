@@ -28,6 +28,9 @@ def load_all():
 
 def load_conversation(data):
 
+	if data.get('ignore'):
+		return
+
 	if "partner" in data:
 		load_direct_conversation(data)
 	elif "members" in data:
@@ -82,6 +85,9 @@ def load_group_conversation(data):
 		session.commit()
 
 def load_contact(data):
+
+	if data.get('ignore'):
+		return
 
 	data['user_defined'] = True
 	#data['friend'] = True
