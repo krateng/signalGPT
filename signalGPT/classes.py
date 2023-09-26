@@ -238,12 +238,14 @@ class Message(Base):
 	chat_id = Column(Integer,ForeignKey('chats.uid'))
 	chat = relationship('Chat',backref='messages')
 	author_handle = Column(String,ForeignKey('people.handle'))
-	author = relationship('Partner',backref='messages')
+	author = relationship('Partner',backref='messages',foreign_keys=[author_handle])
 	timestamp = Column(Integer)
 	message_type = Column(Enum(MessageType),default=MessageType.Text)
 	content = Column(String,default="")
 	content_secondary = Column(String) # used for media description
 	media_attached = Column(String)
+	linked_contact_handle = Column(String,ForeignKey('people.handle'))
+	linked_contact = relationship('Partner',foreign_keys=[linked_contact_handle])
 
 	def __init__(self,**data):
 		if 'content' in data:
@@ -270,7 +272,7 @@ class Message(Base):
 			'own':(self.get_author() is Protagonist),
 			'chat': {'ref':'chats','key':self.chat.uid},
 			'content':self.content or "",
-			'linked_entity': {'ref': 'contacts','key':self.content } if self.message_type == MessageType.Contact else None,
+			'linked_entity': {'ref': 'contacts','key':self.linked_contact.handle } if self.message_type == MessageType.Contact else None,
 			'message_type':self.message_type.name if self.message_type else None,
 			#'media_attached':self.media_attached,
 			#'media_type':get_media_type(self.media_attached),
@@ -284,7 +286,7 @@ class Message(Base):
 		elif self.message_type in [MessageType.Image, MessageType.Video]:
 			return f"[{self.message_type.name} attached: {self.content_secondary}]"
 		elif self.message_type == MessageType.Contact:
-			return f"[Contact attached: @{self.content}]"
+			return f"[Contact attached: @{self.linked_contact.handle}]"
 		elif self.message_type == MessageType.MetaJoin:
 			return "[has been added to chat]"
 		elif self.message_type == MessageType.MetaLeave:
@@ -367,7 +369,8 @@ class Chat(Base):
 		male: (('boolean',),True,"True if the contact is male, false if they are female."),
 		short_description: (('string',),True,"Objectively describe the contact. Include name and sex again, but also character, ethnicity, looks, etc. without any relation to the current chat context.\
 		Please do not editorialize this according to your character, but write neutrally."),
-		context_introduction: (('string',),True,"A summary directed at the new contact (in second person), detailing all interactions and relevant events involving them up to this point (even their own actions and opinions), speaking as a neutral instructor (not yourself).")
+		context_introduction: (('string',),True,"A summary directed at the new contact (in second person), detailing all interactions and relevant events involving them up to this point (even their own actions and opinions), speaking as a neutral instructor (not yourself)."),
+		add_to_groupchat: (('boolean',),False,"Whether to add this contact to the chat instead of simply sending them. Only works in group chats.") = False
 	):
 		"Send contact info of a person you know to the chat. It should only be used when a chat partner explicitly requests their contact details, not simply everytime someone mentions another person."
 
@@ -380,8 +383,12 @@ class Chat(Base):
 				session.commit()
 			handle = char.handle
 
-		m = self.add_message(author=author,message_type=MessageType.Contact,content=handle)
-		yield m
+		if add_to_groupchat and isinstance(self,GroupChat):
+			m = self.add_person(char)
+			yield m
+		else:
+			m = self.add_message(author=author,message_type=MessageType.Contact,linked_contact=char)
+			yield m
 
 
 	@ai_accessible_function
@@ -801,12 +808,14 @@ class GroupChat(Chat):
 	def add_person(self,person):
 		if person not in self.members:
 			self.members.append(person)
-			self.messages.append(Message(
+			m = Message(
 				message_type = MessageType.MetaJoin,
 				author = person,
 				chat = self,
 				timestamp = now()
-			))
+			)
+			self.messages.append(m)
+			return m
 
 
 
@@ -819,7 +828,7 @@ def maintenance():
 		for partner in session.query(Partner).all():
 			if (not partner.chats) and (not partner.direct_chat) and (not partner.friend):
 				for msg in session.query(Message).all():
-					if msg.message_type == MessageType.Contact and msg.content == partner.handle:
+					if msg.message_type == MessageType.Contact and msg.linked_contact == partner:
 						print("Not deleting",partner.name,"because they are sent as a contact.")
 						break
 				else:
@@ -838,6 +847,10 @@ def maintenance():
 					print("DB Legacy update!")
 					msg.content = msg.media_attached
 					msg.media_attached = None
+
+			if (msg.message_type == MessageType.Contact) and (not msg.linked_contact):
+				partner = session.query(Partner).where(Partner.handle == msg.content).first()
+				msg.linked_contact = partner
 		session.commit()
 
 		# delete unused pics

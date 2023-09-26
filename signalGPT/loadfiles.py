@@ -90,7 +90,7 @@ def load_contact(data):
 		return
 
 	data['user_defined'] = True
-	#data['friend'] = True
+	data['friend'] = True
 
 	if data.get('image') and data['image'].startswith("./"):
 		data['image'] = "/media/" + data['image'].split("./",1)[1]

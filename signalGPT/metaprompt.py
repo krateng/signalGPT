@@ -344,3 +344,20 @@ def summarize_chat(msgs,perspective=None,external=False):
 	save_debug_file('summarize',{'messages':messages,'result':content})
 
 	return content
+
+
+
+def create_example_chat(instructions,messages=(4,8),samples=10):
+
+	completion = openai.ChatCompletion.create(
+		model="gpt-4",
+		messages=[
+			{'role':'user','content':f"I'm going to send you instructions for a character. You do not actually need to follow them, instead I would like you to create {samples} examples\
+			of made up conversations between this character and the first person speaker. Return your examples as a json list, with each element being a list of {messages[0]}-{messages[1]} messages between\
+			this character and the speaker. Each message should be an object with the keys 'speaker' and 'message'"},
+			{'role':'user','content':instructions}
+		]
+	)
+
+	msg = completion['choices'][0]['message']
+	return json.loads(msg['content'])

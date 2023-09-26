@@ -182,9 +182,12 @@ window.appdata = {
 							contacts:this.getContact
 						}
 						console.log('missing reference:',ref_type,ref_key);
+						let key_to_save_in = key;
 						funcs[ref_type].bind(this)(ref_key)
 							.then(result=>{
-								obj[key] = this[ref_type][ref_key];
+								obj[key_to_save_in] = this[ref_type][ref_key];
+								this.resolveReferences(obj[key_to_save_in]);
+								this.manual_update++;
 							});
 
 					}
