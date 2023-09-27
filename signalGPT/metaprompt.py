@@ -8,6 +8,7 @@ import browser_cookie3
 
 from .__init__ import config
 from .helper import save_debug_file
+from .ai_providers import AI
 
 
 create_char_message = '''
@@ -105,96 +106,8 @@ def create_character_image(keywords,male):
 	else:
 		negative_prompt = ['male','man','boy']
 
-	return create_image(keywords,negative_prompt,'square')
-
-
-def create_image(prompt_pos=[],prompt_neg=[],format='sqaure'):
-
-	if isinstance(prompt_pos,str):
-		prompt_pos = [prompt_pos]
-	if isinstance(prompt_neg,str):
-		prompt_neg = [prompt_neg]
-
-	prompt_neg += [
-		"(worst quality:1.4)","(low quality:1.4)", "low-res", "missing fingers", "extra digit", "extra limbs", "malformed limbs", "disfigured"
-	]
-
-	prompt_pos = ",".join(prompt_pos)
-	prompt_neg = ",".join(prompt_neg)
-
-	authinfo = config.get('auth',{}).get('anydream',{})
-	if authinfo.get('import'):
-		cj = browser_cookie3.load(domain_name=".anydream.xyz")
-		cookies = {c.name:c.value for c in cj}
-	else:
-		cookies = {} #direct from file not supported for now
-
-	if cookies:
-		session = requests.Session()
-		session.cookies.update(cookies)
-
-		resolutions = {
-			'square':(640,640),
-			'portrait':(512,768),
-			'landscape':(768,512)
-		}
-
-		r1 = session.post("https://www.anydream.xyz/api/a1_request",json={
-			'model': "ReAL",
-			'endpoint': "txt2img",
-			'params':{
-				'batch_size': 1,
-				'cfg_scale': "7",
-				'height':resolutions[format][1],
-				'width': resolutions[format][0],
-				'prompt':prompt_pos,
-				'negative_prompt': prompt_neg,
-				'seed': -1,
-				'sampler_name': "DPM++ 2M Karras",
-				'steps': 25
-			},
-			'aspectRatio': format
-		})
-		j = r1.json()
-
-		if req_id := j.get('requestId'):
-			pass
-		else:
-			save_debug_file('imageeneration',{'prompt_positive':prompt_pos,'prompt_negative':prompt_neg,'error_generate':True,'generate_request':{'json':j}})
-			return ""
-
-
-		while True:
-
-			time.sleep(2)
-
-			r2 = session.post("https://www.anydream.xyz/api/a1_request/check",json={
-				'requestId': req_id
-			})
-			j = r2.json()
-
-			if status := j.get('status'):
-				if status == 'success':
-					img = j['images'][0]['imgUrl']
-					save_debug_file('imageeneration',{'prompt_positive':prompt_pos,'prompt_negative':prompt_neg,'result':img})
-					return img
-			else:
-				save_debug_file('imageeneration',{'prompt_positive':prompt_pos,'prompt_negative':prompt_neg,'error_resolve':True,'result':{
-					'generate_request':{
-						'json':r1.json(),
-						'headers':dict(r1.headers),
-						'cookies':dict(r1.cookies)
-					},
-					'resolve_request':{
-						'json':r2.json(),
-						'headers':dict(r2.headers),
-						'cookies':dict(r2.cookies)
-					}
-				}})
-				return ""
-
-	else:
-		return ""
+	return AI['ImageGeneration'].create_image(keywords,negative_prompt,'square')
+	#return create_image(keywords,negative_prompt,'square')
 
 
 

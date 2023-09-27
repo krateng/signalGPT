@@ -21,10 +21,10 @@ from sqlalchemy.ext.declarative import declarative_base
 
 
 from .__init__ import config
-from .metaprompt import create_character_info, create_character_image, guess_next_responder, summarize_chat, create_image
+from .metaprompt import create_character_info, create_character_image, guess_next_responder, summarize_chat
 from .helper import save_debug_file
 from . import memes
-
+from .ai_providers import AI
 
 
 MAX_MESSAGES_IN_CONTEXT = 30
@@ -359,7 +359,7 @@ class Chat(Base):
 		prompt_neg = negative_prompt
 		format = 'landscape' if landscape else 'portrait'
 
-		img = create_image(prompt_pos,prompt_neg,format)
+		img = AI['ImageGeneration'].create_image(prompt_pos,prompt_neg,format)
 		m = self.add_message(author=author,message_type=MessageType.Image,content=img,content_secondary=short_desc)
 		yield m
 
@@ -670,7 +670,7 @@ class GroupChat(Chat):
 	):
 		"Can be used to change the group picture. This should only be used when there is a specific reason, or rarely for comedic effect."
 
-		img = create_image(prompt,negative_prompt,format='square')
+		img = AI['ImageGeneration'].create_image(prompt,negative_prompt,format='square')
 		self.image = img
 		m = self.add_message(message_type=MessageType.MetaChangePicture,author=author,content=img)
 		yield m

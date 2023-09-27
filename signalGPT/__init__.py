@@ -19,7 +19,9 @@ except FileNotFoundError:
 			    'chat_summary_update_min_messages': 30,
 			    'message_gap_info_min_hours': 1
 			},
-
+			'use_service':{
+				'ImageGeneration': 'anydream'
+			},
 			'user': {
 				'name': 'Anon',
 				'handle': 'anon',
