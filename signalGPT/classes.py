@@ -29,7 +29,6 @@ from .ai_providers import AI
 
 MAX_MESSAGES_IN_CONTEXT = 30
 MAX_MESSAGE_LENGTH = 100
-PREFERRED_TOKEN_BIAS = 2
 
 COST = {
 	'gpt-3.5-turbo-16k':(3,4),
@@ -67,14 +66,6 @@ def get_media_type(filename):
 		if ext in ['mp4','mkv','webm','avi']: return 'Video'
 		if ext in ['jpg','jpeg','png','gif','webp']: return 'Image'
 
-def generate_bias(wordlist,model):
-	enc = tiktoken.encoding_for_model(model)
-	#first join with comma to ensure no combining of words into tokens, then filter out comma token
-	tokens = enc.encode(','.join([wordvar for word in wordlist for wordvar in [word," " + word]]))
-	commatoken = enc.encode(",")[0]
-	tokens = [token for token in tokens if token != commatoken]
-	bias = {token:PREFERRED_TOKEN_BIAS for token in tokens}
-	return bias
 
 
 def ai_accessible_function(func):
@@ -162,8 +153,6 @@ class Partner(Base):
 			data['male'] = results['male']
 
 			data['image'] = create_character_image(results['img_prompt_keywords'],male=data['male'])
-
-		if "preferred_words" in data: data.pop("preferred_words")
 
 		super().__init__(**data)
 
@@ -477,7 +466,6 @@ class Chat(Base):
 		completion = openai.ChatCompletion.create(
 			model=model,
 			messages=messages,
-			logit_bias=generate_bias(config.get('preferred_words',[]),model),
 			functions=[f['schema'] for f in self.get_ai_accessible_funcs().values()],
 			function_call=('none' if replace else 'auto')
 		)
