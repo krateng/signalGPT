@@ -3,10 +3,9 @@ import enum
 from .. import config
 
 
-
-class Capability(enum.Enum):
-	ImageGeneration = 1
-
+Capability = enum.Enum('Capability',[
+	'ImageGeneration'
+])
 
 def singleton(cls):
 	return cls()

@@ -75,6 +75,15 @@ def api_upload_media():
 		'path': '/' + path
 	}
 
+@post("/api/guess_next_responder")
+def api_guess_responder():
+	info = request.json
+	with Session() as session:
+		chat = session.query(Chat).where(Chat.uid == info['chat_id']).first()
+		if isinstance(chat,GroupChat):
+			return chat.pick_next_responder().serialize()
+		else:
+			return chat.partner.serialize()
 
 @post("/api/generate_message")
 def api_generate_message():
@@ -82,7 +91,11 @@ def api_generate_message():
 	model = config['model_advanced'] if info['bettermodel'] else config['model_base']
 	with Session() as session:
 		chat = session.query(Chat).where(Chat.uid == info['chat_id']).first()
-		msgs = list(chat.get_response(model=model))
+		if 'responder_handle' in info:
+			responder = session.query(Partner).where(Partner.handle==info['responder_handle']).first()
+			msgs = list(chat.get_response(model=model,responder=responder))
+		else:
+			msgs = list(chat.get_response(model=model))
 		for msg in msgs:
 			session.add(msg)
 		session.commit()
@@ -227,4 +240,4 @@ def api_add_chat_member():
 		return chat.serialize()
 
 
-run(port=9090)
+run(port=9090,server='waitress')

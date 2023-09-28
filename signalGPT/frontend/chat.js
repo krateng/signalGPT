@@ -235,28 +235,60 @@ window.appdata = {
 		var chatwindow = document.getElementById('chat');
 		var atEnd = ((chatwindow.scrollTop + 2000) > chatwindow.scrollHeight);
 
-		post("/api/generate_message",{
-			chat_id:this.selected_chat.uid,
-			bettermodel:this.selected_model_advanced
+		post("/api/guess_next_responder",{
+			chat_id:this.selected_chat.uid
 		})
 			.then(response=>response.json())
 			.then(result=>{
-				for (var msg of result.messages) {
-					this.selected_chat.messages.push(msg);
-					this.resolveReferences(msg);
-					this.chats[this.selected_chat.uid].latest_message = msg;
-					if (msg.message_type.includes("Meta")) {
-						this.getChat(this.selected_chat.uid);
-					}
-					if (atEnd) {
-						this.$nextTick(()=>{
-							chatwindow.scrollTop = chatwindow.scrollHeight;
-						});
+				var pseudomsg = {
+					author:result,
+					message_type: "Pseudo",
+					currently_typing: true,
+					timestamp: new Date().getTime() / 1000,
+					content: ""
+				}
+				this.selected_chat.messages.push(pseudomsg);
 
-					}
+				if (atEnd) {
+					this.$nextTick(()=>{
+						chatwindow.scrollTop = chatwindow.scrollHeight;
+					});
+
 				}
 
+				post("/api/generate_message",{
+					chat_id:this.selected_chat.uid,
+					bettermodel:this.selected_model_advanced,
+					responder_handle: result.handle
+				})
+					.then(response=>response.json())
+					.then(result=>{
+						this.selected_chat.messages.pop();
+						for (var msg of result.messages) {
+							this.selected_chat.messages.push(msg);
+							this.resolveReferences(msg);
+							this.chats[this.selected_chat.uid].latest_message = msg;
+							if (msg.message_type.includes("Meta")) {
+								this.getChat(this.selected_chat.uid);
+							}
+							if (atEnd) {
+								this.$nextTick(()=>{
+									chatwindow.scrollTop = chatwindow.scrollHeight;
+								});
+
+							}
+						}
+
+					})
+					.catch(error=>{
+							this.selected_chat.messages.pop();
+					});
+
 			});
+
+		return;
+
+
 	},
 	startEdit(event) {
 		var element = document.getElementById(event.currentTarget.dataset.edittarget);
