@@ -273,7 +273,7 @@ class Message(Base):
 		if self.message_type in [None,MessageType.Text]:
 			return self.content
 		elif self.message_type in [MessageType.Image, MessageType.Video]:
-			return f"[{self.message_type.name} attached: {self.content_secondary}]"
+			return f"[{self.message_type.name} attached: {self.content_secondary or ''}]"
 		elif self.message_type == MessageType.Contact:
 			return f"[Contact attached: @{self.linked_contact.handle}]"
 		elif self.message_type == MessageType.MetaJoin:
@@ -283,7 +283,7 @@ class Message(Base):
 		elif self.message_type == MessageType.MetaRename:
 			return f"[has renamed the chat to '{self.content}']"
 		elif self.message_type == MessageType.MetaChangePicture:
-			return f"[has changed the group picture]"
+			return f"[has changed the group picture: {self.content_secondary or ''}]"
 		else:
 			print("WEIRD MESSAGE:",self.message_type)
 			return ""

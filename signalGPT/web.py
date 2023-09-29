@@ -213,6 +213,9 @@ def api_patch_chat():
 		if 'name' in info and info['name'] != chat.name:
 			m = chat.add_message(message_type=MessageType.MetaRename,author=None,content=info['name'])
 			session.add(m)
+		if 'image' in info:
+			m = chat.add_message(message_type=MessageType.MetaChangePicture,author=None,content=info['image'])
+			session.add(m)
 		chat.__init__(**info)
 		session.commit()
 		return chat.serialize()

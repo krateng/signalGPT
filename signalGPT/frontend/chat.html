@@ -173,7 +173,7 @@
 											<div x-show="!message.display_simplified && message.message_type != 'Pseudo'" class="message-content">
 													<template x-if="message.message_type == 'Contact'">
 														<div class='contact_in_message contact'>
-															<img class="profilepic" x-bind:class="message.linked_entity?.friend ? 'friend' : ''" x-bind:src="message.linked_entity.image" x-on:click="startChat(message.content)" />
+															<img class="profilepic" x-bind:class="message.linked_entity?.friend ? 'friend' : ''" x-bind:src="message.linked_entity.image" x-on:click="startChat(message.linked_entity.handle)" />
 															<h4 x-text="message.linked_entity.name"></h4>
 														</div>
 													</template>
