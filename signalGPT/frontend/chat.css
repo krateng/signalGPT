@@ -207,6 +207,14 @@ img.profilepic {
 	border-radius: 3px;
 }
 
+.chat_window_button {
+	display:block;
+	text-align:center;
+	margin-bottom:70px;
+	margin-top:70px;
+	background-color: orange;
+}
+
 .message {
     display: flex;
 		align-items: flex-end;
@@ -311,10 +319,18 @@ img.profilepic {
     color: var(--msgreceived_text);
 }
 
+.message.received.regenerating .message-content {
+	opacity:0.6;
+}
+
 img.attached_pic,video.attached_video {
 	width: auto;
 	height: 500px;
 	object-fit:cover;
+}
+
+audio.attached_audio {
+	background-color: transparent;
 }
 
 

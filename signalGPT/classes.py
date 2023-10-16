@@ -65,14 +65,24 @@ def get_media_type(filename):
 		ext = filename.split('.')[-1].lower()
 		if ext in ['mp4','mkv','webm','avi']: return 'Video'
 		if ext in ['jpg','jpeg','png','gif','webp']: return 'Image'
+		if ext in ['mp3','wav','flac']: return 'Audio'
 
 
 
 def ai_accessible_function(func):
 	func._aiaccessible = True
-	func._schema = {
+
+	func._lazyschema = {
 		'name':func.__name__,
 		'description':func.__doc__,
+		'parameters':{
+			'type':'object',
+			'properties':{}
+		}
+	}
+
+	func._schema = {
+		**func._lazyschema,
 		'parameters':{
 			'type':'object',
 			'required':[param for param in func.__annotations__ if func.__annotations__[param][1]],
@@ -89,6 +99,7 @@ def ai_accessible_function(func):
 			}
 		}
 	}
+
 	return func
 
 def lazy(func):
@@ -214,6 +225,7 @@ class MessageType(enum.Enum):
 	Text = 1
 	Image = 2
 	Video = 3
+	Audio = 4
 	Contact = 8
 	MetaJoin = 10
 	MetaLeave = 11
@@ -272,7 +284,7 @@ class Message(Base):
 	def display_for_textonly_model(self):
 		if self.message_type in [None,MessageType.Text]:
 			return self.content
-		elif self.message_type in [MessageType.Image, MessageType.Video]:
+		elif self.message_type in [MessageType.Image, MessageType.Video, MessageType.Audio]:
 			return f"[{self.message_type.name} attached: {self.content_secondary or ''}]"
 		elif self.message_type == MessageType.Contact:
 			return f"[Contact attached: @{self.linked_contact.handle}]"
@@ -312,6 +324,7 @@ class Chat(Base):
 		Depending on your personality, this can mean incomplete sentences, spelling mistakes, improper grammar, abbreviations, ellipses, and use of emojis.\
 		It also means casual and informal language. You should never be too verbose.\
 		Remember, you are a person, not just an assistant. No need to always be positive and agreeable. Speak your mind, have realistic interactions.\
+		Don't just react - Feel free to start completely new topics, especially after some time has passed.\
 		Avoid any formatting other than bold and cursive text."
 
 	userinfo_prompt = "About me: {desc}. This is simply something you know about me, no need to explicitly mention it."
@@ -326,7 +339,7 @@ class Chat(Base):
 			fulldict.update(baseclass.__dict__)
 
 		funcs = [f for f in fulldict.values() if getattr(f,'_aiaccessible',False)]
-		funcs = {f.__name__:{'schema':f._schema,'func':f,'lazy':getattr(f,'_lazy',False)} for f in funcs}
+		funcs = {f.__name__:{'schema':f._schema,'lazyschema':f._lazyschema,'func':f,'lazy':getattr(f,'_lazy',False)} for f in funcs}
 		return funcs
 
 
@@ -466,7 +479,7 @@ class Chat(Base):
 		completion = openai.ChatCompletion.create(
 			model=model,
 			messages=messages,
-			functions=[f['schema'] for f in self.get_ai_accessible_funcs().values()],
+			functions=[f['lazyschema'] for f in self.get_ai_accessible_funcs().values()],
 			function_call=('none' if replace else 'auto')
 		)
 
@@ -479,6 +492,7 @@ class Chat(Base):
 
 		save_debug_file('messagerequest',{'messages':messages,'result':msg})
 
+		# TEXT CONTENT
 		if content := msg['content']:
 			content = self.clean_content(content,responder)
 
@@ -491,10 +505,22 @@ class Chat(Base):
 					m = self.add_message(author=responder,content=contpart)
 					yield m
 					time.sleep(1)
+
+		# FUNCTIONS
 		if funccall := msg.get('function_call'):
-			args = json.loads(funccall['arguments'])
-			funcs = self.get_ai_accessible_funcs()
-			called_func = funcs[funccall['name']]
+
+			# ai indicated it wants to use that function, so we now provide it with the full signature
+			called_func = self.get_ai_accessible_funcs()[funccall['name']]
+			completion = openai.ChatCompletion.create(
+				model=model,
+				messages=messages,
+				functions=[called_func['schema']],
+				function_call={'name':funccall['name']}
+			)
+			msg2 = completion['choices'][0]['message']
+			funccall2 = msg2.get('function_call')
+
+			args = json.loads(funccall2['arguments'])
 			if called_func['lazy']:
 				actual_functions = called_func['func'](self=self,author=responder)
 				# this is a func that has no args yet to save tokens
@@ -504,11 +530,12 @@ class Chat(Base):
 					messages=messages,
 					functions=[f['schema'] for f in actual_functions.values()]
 				)
-				msg2 = completion['choices'][0]['message']
-				save_debug_file('messagerequest',{'messages':messages,'result':msg,'result_followup':msg2})
-				funccall2 = msg2.get('function_call')
-				yield from called_func['func'](self=self,author=responder,resolve=funccall2['name'],args=json.loads(funccall2['arguments']))
+				msg3 = completion['choices'][0]['message']
+				save_debug_file('messagerequest',{'messages':messages,'result':msg,'result_followup':msg2,'result_unfold':msg3})
+				funccall3 = msg3.get('function_call')
+				yield from called_func['func'](self=self,author=responder,resolve=funccall3['name'],args=json.loads(funccall3['arguments']))
 			else:
+				save_debug_file('messagerequest',{'messages':messages,'result':msg,'result_followup':msg2})
 				yield from called_func['func'](self=self,author=responder,**args)
 
 	def cmd_chat(self,session):
