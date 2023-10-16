@@ -79,10 +79,14 @@ class Anydream(AIProvider):
 				j = r2.json()
 
 				if status := j.get('status'):
-					if status == 'success':
+					if status == 'requested':
+						pass
+					elif status == 'success':
 						img = j['images'][0]['imgUrl']
 						save_debug_file('imageeneration',{'prompt_positive':prompt_positive,'prompt_negative':prompt_negative,'result':img})
 						return img
+					else:
+						print(status)
 				else:
 					save_debug_file('imageeneration',{'prompt_positive':prompt_positive,'prompt_negative':prompt_negative,'error_resolve':True,'result':{
 						'generate_request':{

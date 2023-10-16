@@ -146,7 +146,7 @@ def guess_next_responder(msgs,people,user):
 				'description': "Select who should be the next responder in the group chat",
 				'parameters': {
 					'type': "object",
-					'required': ["responder_chances" if USE_CHANCE_MECHANIC else "responder"],
+					'required': ["responder_chances"] if USE_CHANCE_MECHANIC else ["responder","alternative_responder"],
 					'properties':{
 						'responder_chances':{
 							'type': "object",
@@ -179,9 +179,10 @@ def guess_next_responder(msgs,people,user):
 							'type':"string",
 							'description': "A short explanation why you think this character is most likely to respond next."
 						},
-						'confidence':{
-							'type':"number",
-							'description': "a percentage value how certain you are that this will indeed be the next responder"
+						'alternative_responder':{
+							'type':"string",
+							'enum': list(ppl.keys()),
+							'description': "An alternative pick for the next most likely responder."
 						}
 					}
 				}
@@ -202,6 +203,8 @@ def guess_next_responder(msgs,people,user):
 		responder = max(info['responder_chances'], key=lambda x:info['responder_chances'][x]['chance'])
 	else:
 		responder = info['responder']
+		if responder not in ppl:
+			responder = info['alternative_responder']
 
 	if responder in ppl:
 		return ppl[responder]

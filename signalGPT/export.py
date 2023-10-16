@@ -38,8 +38,8 @@ with Session() as session:
 
 
 	else:
-		p = session.query(Partner).where(Partner.handle==handle).first()
-		filepath = os.path.join("contacts",handle + ".yml")
+		p = session.query(Partner).where(Partner.handle==target).first()
+		filepath = os.path.join("contacts",target + ".yml")
 
 
 
