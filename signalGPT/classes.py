@@ -24,8 +24,7 @@ from .__init__ import config
 from .metaprompt import create_character_info, create_character_image, guess_next_responder, summarize_chat
 from .helper import save_debug_file
 from . import memes
-from .ai_providers import AI
-
+from .ai_providers import AI, Format
 
 MAX_MESSAGES_IN_CONTEXT = 30
 MAX_MESSAGE_LENGTH = 100
@@ -348,20 +347,19 @@ class Chat(Base):
 		prompt: (('array','string'),True,"Keywords that objectively describe what the image shows to someone who has no context or knowledge of you or this chat.\
 			If the picture includes yourself or other chat participants, make sure the keywords describe your or their appearance to the best of your knowledge. \
 			Don't just add your name, add things like your ethnicity, hair color etc.\
-			You may use quite a few keywords here and go into detail.")=[],
-		negative_prompt: (('array','string'),False,"Keywords for undesirable traits or content of the picture.") =[],
+			You may use quite a few keywords here and go into detail.") = [],
+		prompt_fulltext: (('string',),True,"The prompt for the image, but as a continuous descriptive text.") = "" ,
+		negative_prompt: (('array','string'),False,"Keywords for undesirable traits or content of the picture.") = [],
 		selfie: (('boolean',),True,"Whether this is a picture of yourself.")=False,
-		short_desc: (('string',),True,"A short description of what the picture shows for visually impaired users.") ="",
-		landscape: (('boolean',),False,"Whether to send a picture in landscape mode instead of portrait mode")=False
+		short_desc: (('string',),True,"A short description of what the picture shows for visually impaired users.") = "",
+		landscape: (('boolean',),False,"Whether to send a picture in landscape mode instead of portrait mode") = False
 	):
 		"Send an image in the chat. It should be used very rarely, only when sending a picture fits the context or is requested.\
 		You also cannot randomly send pictures of other people, unless context indicates that you're currently in the same loction together.\
 		Do not simply send a picture just because the previous message is a picture."
-		prompt_pos = prompt
-		prompt_neg = negative_prompt
-		format = 'landscape' if landscape else 'portrait'
+		imageformat = Format.Landscape if landscape else Format.Portrait
 
-		img = AI['ImageGeneration'].create_image(prompt_pos,prompt_neg,format)
+		img = AI['ImageGeneration'].create_image(keyword_prompt=prompt, keyword_prompt_negative=negative_prompt, fulltext_prompt=prompt_fulltext, imageformat=imageformat)
 		m = self.add_message(author=author,message_type=MessageType.Image,content=img,content_secondary=short_desc)
 		yield m
 
@@ -681,11 +679,12 @@ class GroupChat(Chat):
 	@ai_accessible_function
 	def change_group_picture(self,author,
 		prompt: (('array','string'),True,"Keywords that describe the image"),
+		prompt_fulltext: (('string',),True,"Full text description of the image"),
 		negative_prompt: (('array','string'),False,"Keywords for undesirable traits or content of the picture.") = []
 	):
 		"Can be used to change the group picture. This should only be used when there is a specific reason, or rarely for comedic effect."
 
-		img = AI['ImageGeneration'].create_image(prompt,negative_prompt,format='square')
+		img = AI['ImageGeneration'].create_image(keyword_prompt=prompt, keyword_prompt_negative=negative_prompt, fulltext_prompt=prompt_fulltext, imageformat=Format.Square)
 		self.image = img
 		m = self.add_message(message_type=MessageType.MetaChangePicture,author=author,content=img)
 		yield m

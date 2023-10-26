@@ -8,8 +8,7 @@ import browser_cookie3
 
 from .__init__ import config
 from .helper import save_debug_file
-from .ai_providers import AI
-
+from .ai_providers import AI, Format
 
 create_char_message = '''
 I am going to give you some very basic notes on a character.
@@ -59,7 +58,9 @@ def create_character_info(notes):
 						},
 						'bio':{
 							'type': "string",
-							'description': "A short tagline / bio they might use on social media (no more than 10-15 words). Depending on personality, this can contain emojis."
+							'description': "A short tagline / bio they might use on social media (no more than 10-15 words). Make sure this isn't just some corporate sounding self-description,\
+								but a very personal, self-selected tagline that reflects their personality. It sounding believable is much more important than containing all the information\
+								about the character."
 						},
 						'img_prompt_keywords':{
 							'type': "array",
@@ -106,7 +107,7 @@ def create_character_image(keywords,male):
 	else:
 		negative_prompt = ['male','man','boy']
 
-	return AI['ImageGeneration'].create_image(keywords,negative_prompt,'square')
+	return AI['ImageGeneration'].create_image(keyword_prompt=keywords,keyword_prompt_negative=negative_prompt,imageformat=Format.Square)
 	#return create_image(keywords,negative_prompt,'square')
 
 

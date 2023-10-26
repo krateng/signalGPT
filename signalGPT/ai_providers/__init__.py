@@ -1,14 +1,24 @@
+import abc
 import enum
+
+from typing import Dict
 
 from .. import config
 
 
-Capability = enum.Enum('Capability',[
-	'ImageGeneration'
-])
+class Capability(enum.Enum):
+	ImageGeneration = enum.auto()
+
+
+class Format(enum.Enum):
+	Square = enum.auto()
+	Landscape = enum.auto()
+	Portrait = enum.auto()
+
 
 def singleton(cls):
 	return cls()
+
 
 class AIProvider:
 	options = {
@@ -34,9 +44,13 @@ class AIProvider:
 	def __getitem__(cls,attr):
 		return cls.options[attr]
 
-from . import anydream, openai
+	@abc.abstractmethod
+	def create_image(self, keyword_prompt: list, keyword_prompt_negative: list, fulltext_prompt: str, imageformat: Format):
+		pass
 
-AI = {
+from . import anydream, open_ai
+
+AI: Dict[str, AIProvider] = {
 	name: [provider for provider in AIProvider.options[cap] if provider.identifier == config['use_service'][name]][0]
-	for name,cap in Capability._member_map_.items()
+	for name, cap in Capability._member_map_.items()
 }
