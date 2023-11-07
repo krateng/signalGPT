@@ -1,6 +1,8 @@
 import openai
 import tiktoken
 import json
+import base64
+import mimetypes
 import oyaml as yaml
 import os
 import random
@@ -10,6 +12,7 @@ from doreah.io import col
 import emoji
 import enum
 import math
+from collections import namedtuple
 
 from pprint import pprint
 
@@ -29,10 +32,18 @@ from .ai_providers import AI, Format
 MAX_MESSAGES_IN_CONTEXT = 30
 MAX_MESSAGE_LENGTH = 100
 
-COST = {
-	'gpt-3.5-turbo-16k':(3,4),
-	'gpt-4':(30,60)
-}
+GPTModel = namedtuple('GPTModel',['identifier','cost_input','cost_output','vision_capable','functions'])
+
+MODELS = [
+	GPTModel('gpt-3.5-turbo-16k',3,4,False,True),
+	GPTModel('gpt-4',30,60,False,True),
+	GPTModel('gpt-4-32k',60,120,False,True),
+	GPTModel('gpt-4-1106-preview',10,30,False,True),
+	GPTModel('gpt-4-vision-preview',10,30,True,False),
+]
+
+MODEL_BASE = [m for m in MODELS if m.identifier == config['model_base']][0]
+MODEL_ADVANCED = [m for m in MODELS if m.identifier == config['model_advanced']][0]
 
 
 def now():
@@ -66,6 +77,16 @@ def get_media_type(filename):
 		if ext in ['jpg','jpeg','png','gif','webp']: return 'Image'
 		if ext in ['mp3','wav','flac']: return 'Audio'
 
+
+def image_encode_b64(filename):
+	mime_type, _ = mimetypes.guess_type(filename)
+	if mime_type is None:
+		mime_type = 'application/octet-stream'
+
+	with open(filename, "rb") as image_file:
+		encoded_string = base64.b64encode(image_file.read()).decode('utf-8')
+
+	return f'data:{mime_type};base64,{encoded_string}'
 
 
 def ai_accessible_function(func):
@@ -280,9 +301,18 @@ class Message(Base):
 			'display_simplified': self.content and (len(self.content)<6) and ("" == emoji.replace_emoji(self.content,replace=''))
 		}
 
-	def display_for_textonly_model(self):
+	def display_for_model(self,vision=False):
 		if self.message_type in [None,MessageType.Text]:
 			return self.content
+		elif (self.message_type == MessageType.Image) and vision:
+			return [
+				{
+					'type':'image_url',
+					'image_url':{
+						'url': image_encode_b64('.' + self.content)
+					}
+				}
+			]
 		elif self.message_type in [MessageType.Image, MessageType.Video, MessageType.Audio]:
 			return f"[{self.message_type.name} attached: {self.content_secondary or ''}]"
 		elif self.message_type == MessageType.Contact:
@@ -468,30 +498,34 @@ class Chat(Base):
 			msg.print()
 
 
-	def get_response(self,replace=None,model=config['model_base'],responder=None):
+	def get_response(self,replace=None,model=MODEL_BASE,responder=None):
 		if not responder:
 			responder = replace.author if replace else self.pick_next_responder()
 
-		messages = self.get_openai_msg_list(from_perspective=responder,upto=replace)
+		messages = self.get_openai_msg_list(from_perspective=responder,upto=replace,images=model.vision_capable)
 
-		completion = openai.ChatCompletion.create(
-			model=model,
+		funcargs = {
+			'tools':[{'type':'function','function':f['lazyschema']} for f in self.get_ai_accessible_funcs().values()],
+			'tool_choice':('none' if replace else 'auto')
+		} if model.functions else {}
+
+
+		completion = openai.chat.completions.create(
+			model=model.identifier,
 			messages=messages,
-			functions=[f['lazyschema'] for f in self.get_ai_accessible_funcs().values()],
-			function_call=('none' if replace else 'auto')
+			**funcargs
 		)
 
 
-		msg = completion['choices'][0]['message']
-		cost = completion['usage']
-		prices = COST[model]
-		self.total_paid += prices[0] * cost['prompt_tokens']
-		self.total_paid += prices[1] * cost['completion_tokens']
+		msg = completion.choices[0].message
+		cost = completion.usage
+		self.total_paid += model.cost_input * cost.prompt_tokens
+		self.total_paid += model.cost_output * cost.completion_tokens
 
-		save_debug_file('messagerequest',{'messages':messages,'result':msg})
+		save_debug_file('messagerequest',{'messages':messages,'result':dict(msg)})
 
 		# TEXT CONTENT
-		if content := msg['content']:
+		if content := msg.content:
 			content = self.clean_content(content,responder)
 
 			if replace:
@@ -505,17 +539,21 @@ class Chat(Base):
 					time.sleep(1)
 
 		# FUNCTIONS
-		if funccall := msg.get('function_call'):
+		if funccall := msg.function_call:
 
 			# ai indicated it wants to use that function, so we now provide it with the full signature
 			called_func = self.get_ai_accessible_funcs()[funccall['name']]
-			completion = openai.ChatCompletion.create(
-				model=model,
+			completion = openai.chat.completions.create(
+				model=model.identifier,
 				messages=messages,
 				functions=[called_func['schema']],
 				function_call={'name':funccall['name']}
 			)
-			msg2 = completion['choices'][0]['message']
+			msg2 = completion.choices[0].message
+			cost = completion.usage
+			self.total_paid += model.cost_input * cost.prompt_tokens
+			self.total_paid += model.cost_output * cost.completion_tokens
+
 			funccall2 = msg2.get('function_call')
 
 			args = json.loads(funccall2['arguments'])
@@ -523,17 +561,20 @@ class Chat(Base):
 				actual_functions = called_func['func'](self=self,author=responder)
 				# this is a func that has no args yet to save tokens
 				# once the AI decides to call it, we ask it again, this time with details
-				completion = openai.ChatCompletion.create(
+				completion = openai.chat.completions.create(
 					model=model,
 					messages=messages,
 					functions=[f['schema'] for f in actual_functions.values()]
 				)
-				msg3 = completion['choices'][0]['message']
-				save_debug_file('messagerequest',{'messages':messages,'result':msg,'result_followup':msg2,'result_unfold':msg3})
+				msg3 = completion.choices[0].message
+				cost = completion.usage
+				self.total_paid += model.cost_input * cost.prompt_tokens
+				self.total_paid += model.cost_output * cost.completion_tokens
+				save_debug_file('messagerequest',{'messages':messages,'result':dict(msg),'result_followup':msg2,'result_unfold':msg3})
 				funccall3 = msg3.get('function_call')
 				yield from called_func['func'](self=self,author=responder,resolve=funccall3['name'],args=json.loads(funccall3['arguments']))
 			else:
-				save_debug_file('messagerequest',{'messages':messages,'result':msg,'result_followup':msg2})
+				save_debug_file('messagerequest',{'messages':messages,'result':dict(msg),'result_followup':msg2})
 				yield from called_func['func'](self=self,author=responder,**args)
 
 	def cmd_chat(self,session):
@@ -586,7 +627,7 @@ class DirectChat(Chat):
 			'latest_message':self.get_messages()[-1].serialize() if self.messages else None
 		}
 
-	def get_openai_messages(self,upto=None):
+	def get_openai_messages(self,upto=None,images=False):
 		messages = self.get_messages(stop_before=upto)[-MAX_MESSAGES_IN_CONTEXT:]
 
 		timenow = upto.timestamp if upto else now()
@@ -621,7 +662,7 @@ class DirectChat(Chat):
 
 			yield {
 				'role':"user" if (msg.is_from_user()) else "assistant",
-				'content': msg.display_for_textonly_model()
+				'content': msg.display_for_model(vision=images)
 			}
 
 		if (timenow - lasttimestamp) > (config['ai_prompting_config']['message_gap_info_min_hours']*3600):
@@ -632,8 +673,8 @@ class DirectChat(Chat):
 
 
 
-	def get_openai_msg_list(self,upto=None,from_perspective=None):
-		result = list(self.get_openai_messages(upto=upto))
+	def get_openai_msg_list(self,upto=None,from_perspective=None,images=False):
+		result = list(self.get_openai_messages(upto=upto,images=images))
 		#from pprint import pprint
 		#pprint(result)
 		return result
@@ -704,7 +745,7 @@ class GroupChat(Chat):
 		}
 
 
-	def get_openai_messages(self,partner,upto=None):
+	def get_openai_messages(self,partner,upto=None,images=False):
 		messages = self.get_messages(stop_before=upto)[-MAX_MESSAGES_IN_CONTEXT:]
 
 		timenow = upto.timestamp if upto else now()
@@ -752,12 +793,12 @@ class GroupChat(Chat):
 			if (len(self.members) > 1) and (msg.get_author() != partner):
 				yield {
 					'role':"user" if (msg.get_author() != partner) else "assistant",
-					'content': msg.get_author().name + ": " + msg.display_for_textonly_model()
+					'content': msg.get_author().name + ": " + msg.display_for_model(vision=images)
 				}
 			else:
 				yield {
 					'role':"user" if (msg.get_author() != partner) else "assistant",
-					'content': msg.display_for_textonly_model()
+					'content': msg.display_for_model(vision=images)
 				}
 
 		if (timenow - lasttimestamp) > (config['ai_prompting_config']['message_gap_info_min_hours']*3600):
@@ -772,8 +813,8 @@ class GroupChat(Chat):
 				'content': self.style_reminder_prompt.format(character_name=partner.name)
 			}
 
-	def get_openai_msg_list(self,from_perspective,upto=None):
-		result = list(self.get_openai_messages(partner=from_perspective,upto=upto))
+	def get_openai_msg_list(self,from_perspective,upto=None,images=False):
+		result = list(self.get_openai_messages(partner=from_perspective,upto=upto,images=images))
 		#from pprint import pprint
 		#pprint(result)
 

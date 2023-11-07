@@ -3,7 +3,7 @@ from bottle import get, post, route, delete, static_file, run, request
 from importlib import resources
 import os
 
-from .classes import Session, Partner, Chat, GroupChat, Message, MessageType, Protagonist, generate_uid
+from .classes import Session, Partner, Chat, GroupChat, Message, MessageType, generate_uid, MODEL_ADVANCED, MODEL_BASE
 from . import config
 
 
@@ -88,7 +88,7 @@ def api_guess_responder():
 @post("/api/generate_message")
 def api_generate_message():
 	info = request.json
-	model = config['model_advanced'] if info['bettermodel'] else config['model_base']
+	model = MODEL_ADVANCED if info['bettermodel'] else MODEL_BASE
 	with Session() as session:
 		chat = session.query(Chat).where(Chat.uid == info['chat_id']).first()
 		if 'responder_handle' in info:
@@ -130,7 +130,7 @@ def api_send_message_message():
 @post("/api/regenerate_message")
 def api_regenerate_message():
 	info = request.json
-	model = config['model_advanced'] if info['bettermodel'] else config['model_base']
+	model = MODEL_ADVANCED if info['bettermodel'] else MODEL_BASE
 	with Session() as session:
 		msg = session.query(Message).where(Message.uid == info['uid']).first()
 		chat = msg.chat
