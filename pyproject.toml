@@ -22,10 +22,10 @@ dependencies = [
 	"bottle>=0.12.16",
 	"sqlalchemy>=1.4",
 	"PyYAML",
-	"openai",
+	"openai>=1.0",
 	"emoji",
 	"doreah",
-	"browser_cookie3"
+	"browser-cookie3"
 ]
 
 [build-system]

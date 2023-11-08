@@ -32,14 +32,15 @@ from .ai_providers import AI, Format
 MAX_MESSAGES_IN_CONTEXT = 30
 MAX_MESSAGE_LENGTH = 100
 
-GPTModel = namedtuple('GPTModel',['identifier','cost_input','cost_output','vision_capable','functions'])
+
+GPTModel = namedtuple('GPTModel',['identifier','cost_input','cost_output','vision_capable','functions','context_window'])
 
 MODELS = [
-	GPTModel('gpt-3.5-turbo-16k',3,4,False,True),
-	GPTModel('gpt-4',30,60,False,True),
-	GPTModel('gpt-4-32k',60,120,False,True),
-	GPTModel('gpt-4-1106-preview',10,30,False,True),
-	GPTModel('gpt-4-vision-preview',10,30,True,False),
+	GPTModel('gpt-3.5-turbo-16k',3,4,False,True,16385),
+	GPTModel('gpt-4',30,60,False,True,8192),
+	GPTModel('gpt-4-32k',60,120,False,True,32768),
+	GPTModel('gpt-4-1106-preview',10,30,False,True,128000),
+	GPTModel('gpt-4-vision-preview',10,30,True,False,128000),
 ]
 
 MODEL_BASE = [m for m in MODELS if m.identifier == config['model_base']][0]
@@ -522,7 +523,7 @@ class Chat(Base):
 		self.total_paid += model.cost_input * cost.prompt_tokens
 		self.total_paid += model.cost_output * cost.completion_tokens
 
-		save_debug_file('messagerequest',{'messages':messages,'result':dict(msg)})
+		save_debug_file('messagerequest',{'messages':messages,'result':msg.model_dump()})
 
 		# TEXT CONTENT
 		if content := msg.content:
@@ -539,24 +540,26 @@ class Chat(Base):
 					time.sleep(1)
 
 		# FUNCTIONS
-		if funccall := msg.function_call:
+		if funccalls := msg.tool_calls:
+
+			funccall = funccalls[0]
 
 			# ai indicated it wants to use that function, so we now provide it with the full signature
-			called_func = self.get_ai_accessible_funcs()[funccall['name']]
+			called_func = self.get_ai_accessible_funcs()[funccall.function.name]
 			completion = openai.chat.completions.create(
 				model=model.identifier,
 				messages=messages,
-				functions=[called_func['schema']],
-				function_call={'name':funccall['name']}
+				tools=[{'type':'function','function':called_func['schema']}],
+				tool_choice={'type':'function','function':{'name':funccall.function.name}}
 			)
 			msg2 = completion.choices[0].message
 			cost = completion.usage
 			self.total_paid += model.cost_input * cost.prompt_tokens
 			self.total_paid += model.cost_output * cost.completion_tokens
 
-			funccall2 = msg2.get('function_call')
+			funccall2 = msg2.tool_calls[0]
 
-			args = json.loads(funccall2['arguments'])
+			args = json.loads(funccall2.function.arguments)
 			if called_func['lazy']:
 				actual_functions = called_func['func'](self=self,author=responder)
 				# this is a func that has no args yet to save tokens
@@ -570,11 +573,11 @@ class Chat(Base):
 				cost = completion.usage
 				self.total_paid += model.cost_input * cost.prompt_tokens
 				self.total_paid += model.cost_output * cost.completion_tokens
-				save_debug_file('messagerequest',{'messages':messages,'result':dict(msg),'result_followup':msg2,'result_unfold':msg3})
+				save_debug_file('messagerequest',{'messages':messages,'result':msg.model_dump(),'result_followup':msg2.model_dump(),'result_unfold':msg3.model_dump()})
 				funccall3 = msg3.get('function_call')
 				yield from called_func['func'](self=self,author=responder,resolve=funccall3['name'],args=json.loads(funccall3['arguments']))
 			else:
-				save_debug_file('messagerequest',{'messages':messages,'result':dict(msg),'result_followup':msg2})
+				save_debug_file('messagerequest',{'messages':messages,'result':msg.model_dump(),'result_followup':msg2.model_dump()})
 				yield from called_func['func'](self=self,author=responder,**args)
 
 	def cmd_chat(self,session):
