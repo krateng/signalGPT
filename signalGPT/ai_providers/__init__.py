@@ -8,6 +8,7 @@ from .. import config
 
 class Capability(enum.Enum):
 	ImageGeneration = enum.auto()
+	ChatResponse = enum.auto()
 
 
 class Format(enum.Enum):
@@ -46,6 +47,10 @@ class AIProvider:
 
 	@abc.abstractmethod
 	def create_image(self, keyword_prompt: list, keyword_prompt_negative: list, fulltext_prompt: str, imageformat: Format):
+		pass
+
+	@abc.abstractmethod
+	def respond_chat(self, chat, messagelist, ai_prov_config={}, allow_functioncall=True):
 		pass
 
 from . import anydream, open_ai

@@ -23,7 +23,7 @@ def create_character_info(notes):
 
 
 
-	completion = openai.ChatCompletion.create(
+	completion = openai.chat.completions.create(
 		model=config['model_meta'],
 		messages=messages,
 		function_call={'name':"create_character"},
@@ -90,8 +90,8 @@ def create_character_info(notes):
 		]
 
 	)
-	message = completion['choices'][0]['message']
-	info = json.loads(message['function_call']['arguments'])
+	message = completion.choices[0].message
+	info = json.loads(message.function_call.arguments)
 
 	save_debug_file('charactercreate',{'prompt':notes,'result':info})
 
@@ -107,7 +107,7 @@ def create_character_image(keywords,male):
 	else:
 		negative_prompt = ['male','man','boy']
 
-	return AI['ImageGeneration'].create_image(keyword_prompt=keywords,keyword_prompt_negative=negative_prompt,imageformat=Format.Square)
+	return AI['ImageGeneration'].create_image(keyword_prompt=keywords,keyword_prompt_negative=negative_prompt,fulltext_prompt="",imageformat=Format.Square)
 	#return create_image(keywords,negative_prompt,'square')
 
 
@@ -131,70 +131,74 @@ def guess_next_responder(msgs,people,user):
 	messages = [
 		{"content":pick_responder_prompt,"role":"system"},
 		{"role":"system","content":"The possible responders are: " + ', '.join(ppl.keys())},
-		{"role":"user","content":"Chatlog:\n\n" + '\n'.join(msg.get_author().name + ": " + msg.display_for_textonly_model() for msg in msgs[-10:])}
+		{"role":"user","content":"Chatlog:\n\n" + '\n'.join(msg.get_author().name + ": " + msg.display_for_model() for msg in msgs[-10:])}
 	]
 
 	#from pprint import pprint
 	#pprint(messages)
 
-	completion = openai.ChatCompletion.create(
+	completion = openai.chat.completions.create(
 		model=config['model_meta'],
 		messages=messages,
-		function_call={'name':"pick_responder"},
-		functions=[
+		tool_choice={'type':'function','function':{'name':"pick_responder"}},
+		tools=[
 			{
-				'name': "pick_responder",
-				'description': "Select who should be the next responder in the group chat",
-				'parameters': {
-					'type': "object",
-					'required': ["responder_chances"] if USE_CHANCE_MECHANIC else ["responder","alternative_responder"],
-					'properties':{
-						'responder_chances':{
-							'type': "object",
-							'required': list(ppl.keys()),
-							'properties':{
-								p:{
-									'type': "object",
-									'properties':{
-										'chance':{
-											'type': "number",
-											'description': f"Likelihood in % for {p} to be the next responder."
-										},
-										'reasoning':{
-											'type': "string",
-											'description': "A short explanation why this character is likely or unlikely to be the next responder"
+				'type':'function',
+				'function':{
+					'name': "pick_responder",
+					'description': "Select who should be the next responder in the group chat",
+					'parameters': {
+						'type': "object",
+						'required': ["responder_chances"] if USE_CHANCE_MECHANIC else ["responder","alternative_responder"],
+						'properties':{
+							'responder_chances':{
+								'type': "object",
+								'required': list(ppl.keys()),
+								'properties':{
+									p:{
+										'type': "object",
+										'properties':{
+											'chance':{
+												'type': "number",
+												'description': f"Likelihood in % for {p} to be the next responder."
+											},
+											'reasoning':{
+												'type': "string",
+												'description': "A short explanation why this character is likely or unlikely to be the next responder"
+											}
 										}
-									}
 
+									}
+									for p in ppl
 								}
-								for p in ppl
 							}
-						}
-					} if USE_CHANCE_MECHANIC else {
-						'responder':{
-							'type':"string",
-							'enum': list(ppl.keys()),
-							'description': "The name of the selected responder. Can only be " + ', '.join(ppl.keys())
-						},
-						'reason':{
-							'type':"string",
-							'description': "A short explanation why you think this character is most likely to respond next."
-						},
-						'alternative_responder':{
-							'type':"string",
-							'enum': list(ppl.keys()),
-							'description': "An alternative pick for the next most likely responder."
+						} if USE_CHANCE_MECHANIC else {
+							'responder':{
+								'type':"string",
+								'enum': list(ppl.keys()),
+								'description': "The name of the selected responder. Can only be " + ', '.join(ppl.keys())
+							},
+							'reason':{
+								'type':"string",
+								'description': "A short explanation why you think this character is most likely to respond next."
+							},
+							'alternative_responder':{
+								'type':"string",
+								'enum': list(ppl.keys()),
+								'description': "An alternative pick for the next most likely responder."
+							}
 						}
 					}
 				}
 			}
+
 		])
-	message = completion['choices'][0]['message']
+	message = completion.choices[0].message
 	try:
-		info = json.loads(message['function_call']['arguments'])
+		info = json.loads(message.tool_calls[0].function.arguments)
 	except:
 		print("Invalid JSON response")
-		save_debug_file('responderpick',{'messages':messages,'raw_result':message})
+		save_debug_file('responderpick',{'messages':messages,'raw_result':message.model_dump()})
 		return None
 
 
@@ -243,7 +247,7 @@ def summarize_chat(msgs,perspective=None,external=False):
 	messages = [
 		{
 			'role':'user',
-			'content':msg.get_author().name + ": " + msg.display_for_textonly_model()
+			'content':msg.get_author().name + ": " + msg.display_for_model()
 		}
 		for msg in msgs
 	] + [
@@ -254,7 +258,7 @@ def summarize_chat(msgs,perspective=None,external=False):
 	]
 
 
-	completion = openai.ChatCompletion.create(model=config['model_meta'],messages=messages)
+	completion = openai.chat.completions.create(model=config['model_meta'],messages=messages)
 	msg = completion['choices'][0]['message']
 	content = msg['content']
 
@@ -266,7 +270,7 @@ def summarize_chat(msgs,perspective=None,external=False):
 
 def create_example_chat(instructions,messages=(4,8),samples=10):
 
-	completion = openai.ChatCompletion.create(
+	completion = openai.chat.completions.create(
 		model="gpt-4",
 		messages=[
 			{'role':'user','content':f"I'm going to send you instructions for a character. You do not actually need to follow them, instead I would like you to create {samples} examples\

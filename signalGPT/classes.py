@@ -424,7 +424,7 @@ class Chat(Base):
 
 	@ai_accessible_function
 	@lazy
-	def send_meme(self,author,resolve=None,args={}):
+	def send_meme(self,author=None,resolve=None,args={}):
 		"Send a meme"
 
 		customfuncs = memes.get_functions()
@@ -505,28 +505,12 @@ class Chat(Base):
 
 		messages = self.get_openai_msg_list(from_perspective=responder,upto=replace,images=model.vision_capable)
 
-		funcargs = {
-			'tools':[{'type':'function','function':f['lazyschema']} for f in self.get_ai_accessible_funcs().values()],
-			'tool_choice':('none' if replace else 'auto')
-		} if model.functions else {}
+		result = AI['ChatResponse'].respond_chat(chat=self, messagelist=messages, ai_prov_config={'model':model}, allow_functioncall=(not replace))
 
-
-		completion = openai.chat.completions.create(
-			model=model.identifier,
-			messages=messages,
-			**funcargs
-		)
-
-
-		msg = completion.choices[0].message
-		cost = completion.usage
-		self.total_paid += model.cost_input * cost.prompt_tokens
-		self.total_paid += model.cost_output * cost.completion_tokens
-
-		save_debug_file('messagerequest',{'messages':messages,'result':msg.model_dump()})
+		self.total_paid += result['cost']
 
 		# TEXT CONTENT
-		if content := msg.content:
+		if content := result['text_content']:
 			content = self.clean_content(content,responder)
 
 			if replace:
@@ -540,45 +524,9 @@ class Chat(Base):
 					time.sleep(1)
 
 		# FUNCTIONS
-		if funccalls := msg.tool_calls:
+		if funccall := result['function_call']:
+			yield from funccall['function'](self=self,author=responder,**funccall['arguments'])
 
-			funccall = funccalls[0]
-
-			# ai indicated it wants to use that function, so we now provide it with the full signature
-			called_func = self.get_ai_accessible_funcs()[funccall.function.name]
-			completion = openai.chat.completions.create(
-				model=model.identifier,
-				messages=messages,
-				tools=[{'type':'function','function':called_func['schema']}],
-				tool_choice={'type':'function','function':{'name':funccall.function.name}}
-			)
-			msg2 = completion.choices[0].message
-			cost = completion.usage
-			self.total_paid += model.cost_input * cost.prompt_tokens
-			self.total_paid += model.cost_output * cost.completion_tokens
-
-			funccall2 = msg2.tool_calls[0]
-
-			args = json.loads(funccall2.function.arguments)
-			if called_func['lazy']:
-				actual_functions = called_func['func'](self=self,author=responder)
-				# this is a func that has no args yet to save tokens
-				# once the AI decides to call it, we ask it again, this time with details
-				completion = openai.chat.completions.create(
-					model=model,
-					messages=messages,
-					functions=[f['schema'] for f in actual_functions.values()]
-				)
-				msg3 = completion.choices[0].message
-				cost = completion.usage
-				self.total_paid += model.cost_input * cost.prompt_tokens
-				self.total_paid += model.cost_output * cost.completion_tokens
-				save_debug_file('messagerequest',{'messages':messages,'result':msg.model_dump(),'result_followup':msg2.model_dump(),'result_unfold':msg3.model_dump()})
-				funccall3 = msg3.get('function_call')
-				yield from called_func['func'](self=self,author=responder,resolve=funccall3['name'],args=json.loads(funccall3['arguments']))
-			else:
-				save_debug_file('messagerequest',{'messages':messages,'result':msg.model_dump(),'result_followup':msg2.model_dump()})
-				yield from called_func['func'](self=self,author=responder,**args)
 
 	def cmd_chat(self,session):
 		self.print()

@@ -37,6 +37,10 @@ class Anydream(AIProvider):
 		if cookies:
 			session = requests.Session()
 			session.cookies.update(cookies)
+			session.headers.update({
+				'Origin':'https://www.anydream.xyz',
+				'Referer':'https://www.anydream.xyz/create'
+			})
 
 			resolutions = {
 				Format.Square: (640, 640, 'square'),
@@ -49,22 +53,29 @@ class Anydream(AIProvider):
 				'endpoint': "txt2img",
 				'params':{
 					'batch_size': 1,
-					'cfg_scale': "7",
+					'cfg_scale': "8",
 					'height': resolutions[imageformat][1],
 					'width': resolutions[imageformat][0],
 					'prompt': keyword_prompt,
 					'negative_prompt': keyword_prompt_negative,
-					'seed': -1,
-					'sampler_name': "DPM++ 2M Karras",
-					'steps': 25
+					'seed': -1
+					#'sampler_name': "DPM++ 2M Karras",
+					#'steps': 25
 				},
 				'aspectRatio': resolutions[imageformat][2]
 			})
-			j = r1.json()
 
-			if req_id := j.get('requestId'):
-				pass
-			else:
+			try:
+				j = r1.json()
+				req_id = j.get('requestId')
+			except requests.exceptions.JSONDecodeError:
+				save_debug_file('imageeneration',{
+					'prompt_positive':keyword_prompt,'prompt_negative':keyword_prompt_negative,'error_generate':True,
+					'generate_request':{'headers':dict(r1.request.headers),'body':str(r1.request.body),'method':r1.request.method},
+					'generate_response':{'content':str(r1.content),'text':r1.text,'code':r1.status_code}
+				})
+				return ""
+			except Exception:
 				save_debug_file('imageeneration',{'prompt_positive':keyword_prompt,'prompt_negative':keyword_prompt_negative,'error_generate':True,'generate_request':{'json':j}})
 				return ""
 
