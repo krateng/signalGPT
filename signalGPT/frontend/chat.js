@@ -230,13 +230,14 @@ window.appdata = {
 				});
 	},
 
-	requestResponse() {
+	requestResponse(force_user=null) {
 
 		var chatwindow = document.getElementById('chat');
 		var atEnd = ((chatwindow.scrollTop + 2000) > chatwindow.scrollHeight);
 
 		post("/api/guess_next_responder",{
-			chat_id:this.selected_chat.uid
+			chat_id:this.selected_chat.uid,
+			force_user_handle: force_user
 		})
 			.then(response=>response.json())
 			.then(result=>{

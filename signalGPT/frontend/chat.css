@@ -407,3 +407,9 @@ button.selected {
 	fill: black;
 	color: black;
 }
+
+
+.user_button {
+    background-size: cover;
+    background-position: center;
+}
