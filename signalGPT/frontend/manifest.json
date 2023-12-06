@@ -1,0 +1,13 @@
+{
+  "name": "SignalGPT",
+  "short_name": "SignalGPT",
+  "start_url": "/chat.html",
+  "display": "standalone",
+  "background_color": "#FFFFFF",
+  "description": "Chat with AI companions.",
+  "icons": [{
+    "src": "/favicon.png",
+    "sizes": "870x870",
+    "type": "image/png"
+  }]
+}

@@ -5,6 +5,7 @@
 		<meta name="viewport" content="width=device-width, initial-scale=1.0">
 		<link rel="stylesheet" href="chat.css">
 		<link rel="stylesheet" href="chat_mobile.css">
+		<link rel="manifest" href="/manifest.json">
 		<script src="//unpkg.com/showdown/dist/showdown.min.js"></script>
 		<script src="//unpkg.com/dompurify/dist/purify.min.js"></script>
 		<script src="chat.js"></script>
@@ -270,7 +271,7 @@
 						</svg>
 					</button>
 					-->
-
+					<br/>
 					<template x-for="user in (Object.values(selected_chat?.partners || {}))">
 						<button class="user_button" x-bind:style="'background-image:url(' + user.image + ')'" x-bind:title="'Force response from ' + user.name" x-on:click="requestResponse(force_user=user.handle)">
 						</button>

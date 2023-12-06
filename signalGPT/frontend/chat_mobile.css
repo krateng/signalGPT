@@ -11,7 +11,7 @@
 
     #app.chat_selected {
         grid-template-columns: 100%;
-        grid-template-rows: 180px auto 120px;
+        grid-template-rows: 130px auto 120px;
 
         grid-template-areas:
             "chatinfo"
@@ -28,6 +28,14 @@
 
     #app.chat_selected div#contacts {
         display: none;
+    }
+
+    #emojilist, #chat_info button {
+        display:none;
+    }
+
+    #chat_info {
+        padding:1px;
     }
 
 
