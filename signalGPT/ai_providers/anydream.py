@@ -28,7 +28,7 @@ class Anydream(AIProvider):
 		prompt_positive = ",".join(keyword_prompt)
 		prompt_negative = ",".join(keyword_prompt_negative)
 
-		if self.auth.get('import'):
+		if self.config.get('import'):
 			cj = browser_cookie3.load(domain_name=".anydream.xyz")
 			cookies = {c.name: c.value for c in cj}
 		else:

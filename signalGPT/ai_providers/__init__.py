@@ -11,6 +11,7 @@ class Capability(enum.Enum):
 	ChatResponse = enum.auto()
 
 
+
 class Format(enum.Enum):
 	Square = enum.auto()
 	Landscape = enum.auto()
@@ -33,7 +34,7 @@ class AIProvider:
 
 
 	def __init__(self):
-		self.auth = config.get('auth',{}).get(self.identifier,{})
+		self.config = config.get('service_config',{}).get(self.identifier,{})
 		basecls = self.__class__.__base__
 		for cap in self.capabilities:
 			basecls.options[cap].append(self)
@@ -50,7 +51,7 @@ class AIProvider:
 		pass
 
 	@abc.abstractmethod
-	def respond_chat(self, chat, messagelist, ai_prov_config={}, allow_functioncall=True):
+	def respond_chat(self, chat, messagelist, allow_functioncall=True):
 		pass
 
 from . import anydream, open_ai
