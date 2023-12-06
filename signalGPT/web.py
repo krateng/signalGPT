@@ -16,9 +16,15 @@ def patch(path):
 	return route(path, method='PATCH')
 
 
+@get("/")
+@auth_basic(is_auth)
+def index():
+	return static("/chat.html")
+
+
 @get("/<path>")
 @auth_basic(is_auth)
-def index(path):
+def static(path):
 	with resources.files('signalGPT') / 'frontend' as staticfolder:
 		return static_file(path, root=staticfolder)
 

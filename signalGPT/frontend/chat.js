@@ -336,7 +336,7 @@ window.appdata = {
 	keyboardInput(event) {
 		var element = event.target;
 		if (element.id == "chat_input_field") {
-			if (event.code == "Enter" && !event.shiftKey) {
+			if (event.which == 13 && !event.shiftKey) {
 				if (element.value == "") {
 					this.requestResponse();
 				}
