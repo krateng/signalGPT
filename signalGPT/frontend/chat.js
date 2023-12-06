@@ -132,6 +132,13 @@ function del(url,data) {
 
 var converter = new showdown.Converter();
 
+window.onpopstate = function(event) {
+  if (!event.state || !event.state.chatOpened) {
+    // User pressed back, remove your class to hide the chat
+    document.getElementById('app').classList.remove('chat_selected');
+  }
+};
+
 window.appdata = {
 	chats:{},
 	contacts:{},
@@ -142,6 +149,9 @@ window.appdata = {
 			if (this.chats[uid]?.full_loaded) {
 				this.selected_chat = this.chats[uid];
 				var chatwindow = document.getElementById('chat');
+				var root = document.getElementById('app');
+				root.classList.add('chat_selected');
+				history.pushState({ chatOpened: uid }, '', window.location.href.split('?')[0] + "?chat=" + uid);
 
 				this.$nextTick(()=>{
 					chatwindow.scrollTop = chatwindow.scrollHeight;
