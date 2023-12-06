@@ -275,4 +275,4 @@ def api_add_chat_member():
 		return chat.serialize()
 
 
-run(port=9090,server='waitress')
+run(host=config['authentication']['host'],port=9090,server='waitress')

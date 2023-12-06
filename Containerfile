@@ -5,7 +5,10 @@ WORKDIR /usr/src/app
 RUN \
 	apk add --no-cache \
 		python3 \
-		py3-pip
+		python3-dev \
+		py3-pip \
+		gcc \
+		musl-dev
 RUN \
 	python3 -m ensurepip && \
   pip3 install -U --no-cache-dir \

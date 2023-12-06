@@ -37,7 +37,8 @@ except FileNotFoundError:
 			},
 			'authentication': {
 				'username': 'anon',
-				'password': 'password'
+				'password': 'password',
+				'host': '0.0.0.0'
 			}
 		}
 		yaml.dump(config, fd)
