@@ -10,16 +10,13 @@ try:
 except FileNotFoundError:
 	with open('config.yml', 'w') as fd:
 		config = {
-			'apikey': None,
-			'model_base': 'gpt-3.5-turbo-16k', # MUCH cheaper
-			'model_advanced': 'gpt-4', # very useful for good character consistency and individuality
-			'model_meta': 'gpt-4', #pretty much necessary for next responder prediction, gpt-3 doesn't understand how group chats work
 			'ai_prompting_config': {
 				'chat_summary_update_min_hours': 96,
 			    'chat_summary_update_min_messages': 30,
 			    'message_gap_info_min_hours': 1
 			},
 			'use_service':{
+				'ChatResponse': 'openai',
 				'ImageGeneration': 'anydream'
 			},
 			'user': {
@@ -28,18 +25,25 @@ except FileNotFoundError:
 				'description': 'I am mysterious and unknowable. Love waffles.',
 				'preferred_emojis': '😃😄😆😅😂😊😇😍🤯🤔🔥🇰🇷🇨🇭'
 			},
-			'auth': {
+			'service_config': {
 				'anydream': {
 					'import': False
+				},
+				'openai':{
+					'apikey': None,
+					'model': 'gpt-4',
+					'model_meta': 'gpt-4-1106-preview'
 				}
+			},
+			'authentication': {
+				'username': 'anon',
+				'password': 'password'
 			}
 		}
 		yaml.dump(config, fd)
 
 for folder in ['media', 'contacts', 'conversations', 'backups','debug']:
 	os.makedirs(folder, exist_ok=True)
-
-openai.api_key = config['apikey']
 
 if os.path.exists("database.sqlite"):
 	backupfile = os.path.join("backups", datetime.utcnow().strftime("%Y-%m-%d") + ".sqlite")

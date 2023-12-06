@@ -1,32 +1,42 @@
-from bottle import get, post, route, delete, static_file, run, request
+from bottle import get, post, route, delete, static_file, run, request, auth_basic
+
 
 from importlib import resources
 import os
 
-from .classes import Session, Partner, Chat, GroupChat, Message, MessageType, generate_uid, MODEL_ADVANCED, MODEL_BASE
+from .classes import Session, Partner, Chat, GroupChat, Message, MessageType, generate_uid
 from . import config
 
 
-def patch(path): return route(path, method='PATCH')
+def is_auth(user,pw):
+	return (user == config['authentication']['user']) and (pw == config['authentication']['password'])
+
+
+def patch(path):
+	return route(path, method='PATCH')
 
 
 @get("/<path>")
+@auth_basic(is_auth)
 def index(path):
 	with resources.files('signalGPT') / 'frontend' as staticfolder:
 		return static_file(path, root=staticfolder)
 
 
 @get("/media/<path:path>")
+@auth_basic(is_auth)
 def media(path):
 	return static_file(path, root="./media")
 
 
 @get("/api/userinfo")
+@auth_basic(is_auth)
 def api_get_userinfo():
 	return config['user']
 
 
 @get("/api/data")
+@auth_basic(is_auth)
 def api_get_data():
 	with Session() as session:
 		return {
@@ -37,6 +47,7 @@ def api_get_data():
 
 
 @get("/api/contacts")
+@auth_basic(is_auth)
 def api_get_contacts():
 	with Session() as session:
 		return {
@@ -46,6 +57,7 @@ def api_get_contacts():
 
 
 @get("/api/conversations")
+@auth_basic(is_auth)
 def api_get_conversations():
 	with Session() as session:
 		return {
@@ -55,12 +67,14 @@ def api_get_conversations():
 
 
 @get("/api/chat/<uid>")
+@auth_basic(is_auth)
 def api_get_chat(uid):
 	with Session() as session:
 		return session.query(Chat).where(Chat.uid == uid).first().serialize()
 
 
 @post("/api/upload_media")
+@auth_basic(is_auth)
 def api_upload_media():
 	file = request.files.get('file')
 	filedata = file.file.read()
@@ -76,32 +90,39 @@ def api_upload_media():
 	}
 
 @post("/api/guess_next_responder")
+@auth_basic(is_auth)
 def api_guess_responder():
 	info = request.json
 	with Session() as session:
 		chat = session.query(Chat).where(Chat.uid == info['chat_id']).first()
 		if isinstance(chat,GroupChat):
+			if 'force_user_handle' in info:
+				user = session.query(Partner).where(Partner.handle == info['force_user_handle']).first()
+				if user in chat.members:
+					return user.serialize()
 			return chat.pick_next_responder().serialize()
 		else:
 			return chat.partner.serialize()
 
 @post("/api/generate_message")
+@auth_basic(is_auth)
 def api_generate_message():
 	info = request.json
-	model = MODEL_ADVANCED if info['bettermodel'] else MODEL_BASE
+	#model = MODEL_ADVANCED if info['bettermodel'] else MODEL_BASE
 	with Session() as session:
 		chat = session.query(Chat).where(Chat.uid == info['chat_id']).first()
 		if 'responder_handle' in info:
 			responder = session.query(Partner).where(Partner.handle==info['responder_handle']).first()
-			msgs = list(chat.get_response(model=model,responder=responder))
+			msgs = list(chat.get_response(responder=responder))
 		else:
-			msgs = list(chat.get_response(model=model))
+			msgs = list(chat.get_response())
 		for msg in msgs:
 			session.add(msg)
 		session.commit()
 		return {'messages': [m.serialize() for m in msgs]}
 
 @post("/api/send_message")
+@auth_basic(is_auth)
 def api_send_message():
 	info = request.json
 	with Session() as session:
@@ -114,6 +135,7 @@ def api_send_message():
 
 
 @post("/api/send_message_media")
+@auth_basic(is_auth)
 def api_send_message_message():
 	info = request.forms
 	file = request.files.get('file')
@@ -128,19 +150,21 @@ def api_send_message_message():
 
 
 @post("/api/regenerate_message")
+@auth_basic(is_auth)
 def api_regenerate_message():
 	info = request.json
-	model = MODEL_ADVANCED if info['bettermodel'] else MODEL_BASE
+	#model = MODEL_ADVANCED if info['bettermodel'] else MODEL_BASE
 	with Session() as session:
 		msg = session.query(Message).where(Message.uid == info['uid']).first()
 		chat = msg.chat
-		msgs = list(chat.get_response(replace=msg,model=model))
+		msgs = list(chat.get_response(replace=msg))
 		session.commit()
 		return msgs[0].serialize()
 
 
 # CONTACT
 @get("/api/contact/<handle>")
+@auth_basic(is_auth)
 def api_get_contact(handle):
 	with Session() as session:
 		print('return',handle)
@@ -149,6 +173,7 @@ def api_get_contact(handle):
 		return char.serialize()
 
 @post("/api/contact")
+@auth_basic(is_auth)
 def api_post_contact():
 	info = request.json
 	with Session() as session:
@@ -161,6 +186,7 @@ def api_post_contact():
 
 
 @patch("/api/contact")
+@auth_basic(is_auth)
 def api_patch_contact():
 	info = request.json
 	with Session() as session:
@@ -175,6 +201,7 @@ def api_patch_contact():
 
 # MESSAGE
 @patch("/api/message")
+@auth_basic(is_auth)
 def api_patch_message():
 	info = request.json
 	with Session() as session:
@@ -185,6 +212,7 @@ def api_patch_message():
 
 
 @delete("/api/message")
+@auth_basic(is_auth)
 def api_delete_message():
 	info = request.json
 	with Session() as session:
@@ -195,6 +223,7 @@ def api_delete_message():
 
 # CHAT
 @post("/api/groupchat")
+@auth_basic(is_auth)
 def api_post_groupchat():
 	info = request.json
 	with Session() as session:
@@ -205,6 +234,7 @@ def api_post_groupchat():
 
 
 @patch("/api/chat")
+@auth_basic(is_auth)
 def api_patch_chat():
 	info = request.json
 	with Session() as session:
@@ -222,6 +252,7 @@ def api_patch_chat():
 
 
 @delete("/api/chat")
+@auth_basic(is_auth)
 def api_delete_chat():
 	info = request.json
 	with Session() as session:
@@ -233,6 +264,7 @@ def api_delete_chat():
 
 
 @post("/api/add_chat_member")
+@auth_basic(is_auth)
 def api_add_chat_member():
 	info = request.json
 	with Session() as session:
