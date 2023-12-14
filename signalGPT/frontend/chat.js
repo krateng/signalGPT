@@ -333,6 +333,11 @@ window.appdata = {
 				this.resolveReferences(result);
 			})
 	},
+	submitMessageFromInput() {
+	    var element = document.getElementById("chat_input_field");
+	    this.sendMessage(element.value,null);
+       	element.value = "";
+	},
 	keyboardInput(event) {
 		var element = event.target;
 		if (element.id == "chat_input_field") {
@@ -341,8 +346,7 @@ window.appdata = {
 					this.requestResponse();
 				}
 				else {
-					this.sendMessage(element.value,null);
-					element.value = "";
+					this.submitMessageFromInput();
 
 				}
 
