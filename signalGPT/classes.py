@@ -728,9 +728,13 @@ class GroupChat(Chat):
 			'role':"system",
 			'content':self.userinfo_prompt.format(desc=config['user']['description'])
 		}
+		memberlist = ', '.join(
+			f"{p.name} (@{p.handle})"
+			for p in self.members + [Protagonist] if p is not partner
+		)
 		yield {
 			'role':"system",
-			'content': f"Group Chat Name: {self.name}\nGroup Chat Members: {', '.join(p.name for p in self.members + [Protagonist])}"
+			'content': f"Group Chat Name: {self.name}\nGroup Chat Members: You, {memberlist}"
 		}
 		#yield {
 		#	'role':"user",
@@ -752,25 +756,21 @@ class GroupChat(Chat):
 			if (msg.timestamp - lasttimestamp) > (config['ai_prompting_config']['message_gap_info_min_hours']*3600):
 				yield {
 					'role':"system",
-					'content':"{hours} hours pass... {now}".format(hours=(timenow - lasttimestamp)//3600,now=describe_time(msg.timestamp))
+					'content':"{hours} hours pass... It's now {now}".format(hours=(timenow - lasttimestamp)//3600,now=describe_time(msg.timestamp))
 				}
 			lasttimestamp = msg.timestamp
 
-			if (len(self.members) > 1) and (msg.get_author() != partner):
-				yield {
-					'role':"user" if (msg.get_author() != partner) else "assistant",
-					'content': msg.display_for_model(vision=images,add_author=msg.get_author())
-				}
-			else:
-				yield {
-					'role':"user" if (msg.get_author() != partner) else "assistant",
-					'content': msg.display_for_model(vision=images)
-				}
+
+			yield {
+				'role':"user" if (msg.get_author() != partner) else "assistant",
+				'content': msg.display_for_model(vision=images),
+				'name': msg.get_author().handle
+			}
 
 		if (timenow - lasttimestamp) > (config['ai_prompting_config']['message_gap_info_min_hours']*3600):
 			yield {
 				'role':"system",
-				'content':"{hours} hours pass... {now}".format(hours=(timenow - lasttimestamp)//3600,now=describe_time(timenow))
+				'content':"{hours} hours pass... It's now {now}".format(hours=(timenow - lasttimestamp)//3600,now=describe_time(timenow))
 			}
 
 		if len(self.members) > 1:
