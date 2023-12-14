@@ -23,7 +23,8 @@ except FileNotFoundError:
 				'name': 'Anon',
 				'handle': 'anon',
 				'description': 'I am mysterious and unknowable. Love waffles.',
-				'preferred_emojis': '😃😄😆😅😂😊😇😍🤯🤔🔥🇰🇷🇨🇭'
+				'preferred_emojis': '😃😄😆😅😂😊😇😍🤯🤔🔥🇰🇷🇨🇭',
+				'utc_offset': 0
 			},
 			'service_config': {
 				'anydream': {

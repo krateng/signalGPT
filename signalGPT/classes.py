@@ -4,7 +4,7 @@ import mimetypes
 import os
 import random
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from doreah.io import col
 import emoji
 import enum
@@ -38,8 +38,10 @@ def now():
 	return int(datetime.now(timezone.utc).timestamp())
 
 def describe_time(timestamp):
-	time = datetime.fromtimestamp(timestamp)
-	return time.strftime('%A %I %p')
+	time = datetime.fromtimestamp(timestamp,tz=timezone.utc)
+	offset = timedelta(hours=config['user']['utc_offset'])
+	local_time = time + offset
+	return local_time.strftime('%A %B %d, %H:%M')
 
 def generate_uid():
 	uid = ""
