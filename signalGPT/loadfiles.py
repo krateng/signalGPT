@@ -13,7 +13,11 @@ def load_all():
 			with open(os.path.join("./contacts",f),'r') as fd:
 				data = yaml.load(fd,Loader=yaml.SafeLoader)
 
-			load_contact(data)
+			if isinstance(data,list):
+				for e in data:
+					load_contact(e)
+			else:
+				load_contact(data)
 
 
 	for f in os.listdir("./conversations"):
