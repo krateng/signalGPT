@@ -132,6 +132,7 @@ span.mention {
 
 .contact img {
     width: 80px;
+    min-width: 80px;
     height: 80px;
     margin-right: 15px;
 }
