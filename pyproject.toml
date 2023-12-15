@@ -20,7 +20,7 @@ classifiers = [
 
 dependencies = [
 	"bottle>=0.12.16",
-	"waitress",
+	"gunicorn",
 	"sqlalchemy>=1.4",
 	"PyYAML",
 	"openai>=1.0",

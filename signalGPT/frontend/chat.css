@@ -327,6 +327,7 @@ img.attached_pic,video.attached_video {
 	width: auto;
 	height: 500px;
 	object-fit:cover;
+	max-width: 100%;
 }
 
 audio.attached_audio {
