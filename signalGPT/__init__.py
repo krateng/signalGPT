@@ -17,7 +17,7 @@ except FileNotFoundError:
 			},
 			'use_service':{
 				'ChatResponse': 'openai',
-				'ImageGeneration': 'anydream'
+				'ImageGeneration': 'getimg'
 			},
 			'user': {
 				'name': 'Anon',
@@ -34,6 +34,9 @@ except FileNotFoundError:
 					'apikey': None,
 					'model': 'gpt-4',
 					'model_meta': 'gpt-4-1106-preview'
+				},
+				'getimg':{
+					'apikey': None
 				}
 			},
 			'authentication': {

@@ -54,7 +54,7 @@ class AIProvider:
 	def respond_chat(self, chat, messagelist, allow_functioncall=True):
 		pass
 
-from . import anydream, open_ai
+from . import anydream, open_ai, getimg
 
 AI: Dict[str, AIProvider] = {
 	name: [provider for provider in AIProvider.options[cap] if provider.identifier == config['use_service'][name]][0]
