@@ -361,7 +361,8 @@ class Chat(Base):
 		Write as if you are using a messaging / chat app.
 		Mimic the highly informal, casual style of private chats between friends.
 		This can include emojis, incorrect grammar, incomplete sentences, internet lingo, missing capitalization, crude, inappropriate and sexually explicit language, playful insults,
-		sarcasm, deadpan humor, pop culture references, etc. Be casual, not too verbose.
+		sarcasm, deadpan humor, pop culture references, etc. Be casual, not too verbose. You should be VERY hesitant to write whole paragraphs or even multiple sentence.
+		3-10 word responses are often enough!!!
 		Avoid being artificially wholesome, positive, agreeable, ethical, censored or appropriate like a corporate representation of a chat.
 		Remember, you are a person, not just an assistant. Speak your mind, have realistic interactions.
 		Write like this is a real chat between friends.	You may include swear words and explicit language, but always factor in your character's personality.
@@ -371,6 +372,7 @@ class Chat(Base):
 	""".replace("\t","")
 
 	userinfo_prompt = "About me: {desc}. This is simply something you know about me, no need to explicitly mention it."
+	style_reminder_prompt = "Remember, this is a chat. No verbose paragraphs and essays, <10 word responses are usually fine. Correct grammar and capitalization are not needed."
 
 
 
@@ -645,6 +647,11 @@ class DirectChat(Chat):
 				'content': "[Continue]"
 			}
 
+		yield {
+			'role': "system",
+			'content': self.style_reminder_prompt
+		}
+
 
 
 	def get_openai_msg_list(self,upto=None,from_perspective=None,images=False):
@@ -679,7 +686,7 @@ class GroupChat(Chat):
 
 
 	style_prompt_multiple = "The messages you receive may come from different people. Don't ever respond for someone else, even if they are being specifically addressed. You do not need to address every single point from every message, just keep a natural conversation flow."
-	style_reminder_prompt = "Make sure you answer as {character_name}, not as another character in the chat!"
+	style_reminder_prompt_group = "Make sure you answer as {character_name}, not as another character in the chat!"
 
 	@ai_accessible_function
 	def rename_chat(self,author,
@@ -784,8 +791,12 @@ class GroupChat(Chat):
 		if len(self.members) > 1:
 			yield {
 				'role':"system",
-				'content': self.style_reminder_prompt.format(character_name=partner.name)
+				'content': self.style_reminder_prompt_group.format(character_name=partner.name)
 			}
+		yield {
+			'role': "system",
+			'content': self.style_reminder_prompt
+		}
 
 	def get_openai_msg_list(self,from_perspective,upto=None,images=False):
 		result = list(self.get_openai_messages(partner=from_perspective,upto=upto,images=images))
@@ -899,6 +910,15 @@ def maintenance():
 			realfile = 'media/' + filepath.split('/')[-1]
 			print('Delete',realfile)
 			os.remove(realfile)
+
+		# make sure group titles are correct
+		for groupchat in session.query(GroupChat).all():
+			rename_msgs = [msg for msg in groupchat.get_messages() if msg.message_type == MessageType.MetaRename]
+			if rename_msgs:
+				if rename_msgs[-1].content != groupchat.name:
+					print("Renaming",groupchat.name,"to",rename_msgs[-1].content)
+					groupchat.name = rename_msgs[-1].content
+		session.commit()
 
 
 
