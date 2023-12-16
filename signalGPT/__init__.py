@@ -17,7 +17,10 @@ except FileNotFoundError:
 			},
 			'use_service':{
 				'ChatResponse': 'openai',
-				'ImageGeneration': 'getimg'
+				'ImageGeneration': 'getimg',
+				'DefaultMeta': 'openai',
+				'ResponderPick': 'openai',
+				'CharacterCreation': 'openai'
 			},
 			'user': {
 				'name': 'Anon',

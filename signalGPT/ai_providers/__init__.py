@@ -9,6 +9,8 @@ from .. import config
 class Capability(enum.Enum):
 	ImageGeneration = enum.auto()
 	ChatResponse = enum.auto()
+	ResponderPick = enum.auto()
+	CharacterCreation = enum.auto()
 
 
 
