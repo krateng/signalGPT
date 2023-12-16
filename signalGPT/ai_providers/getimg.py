@@ -18,11 +18,13 @@ class GetImg(AIProvider):
 			'Authorization': f"Bearer {self.config['apikey']}"
 		})
 
-		r1 = session.post("https://api.getimg.ai/v1/stable-diffusion-xl/text-to-image",json={
+		payload = {
 			'model':"stable-diffusion-xl-v1-0",
 			'prompt': ", ".join(keyword_prompt),
-			'negative_prompt': keyword_prompt_negative
-		})
+			'negative_prompt': ", ".join(keyword_prompt_negative)
+		}
+
+		r1 = session.post("https://api.getimg.ai/v1/stable-diffusion-xl/text-to-image",json=payload)
 
 		result = r1.json()
 
@@ -31,4 +33,4 @@ class GetImg(AIProvider):
 			save_debug_file('imageeneration',{'prompt_positive':keyword_prompt,'prompt_negative':keyword_prompt_negative})
 			return 'data:image/png;base64,' + result['image']
 		except:
-			save_debug_file('imageeneration',{'prompt_positive':keyword_prompt,'prompt_negative':keyword_prompt_negative,'response':result})
+			save_debug_file('imageeneration',{'prompt_positive':keyword_prompt,'prompt_negative':keyword_prompt_negative,'response':result,'payload':payload})

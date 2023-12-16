@@ -335,27 +335,45 @@ audio.attached_audio {
 	background-color: transparent;
 }
 
+#chat_input {
+    padding: 10px;
+    display: grid;
+    align-items: center;
+    justify-content: start;
+    grid-template-areas:
+        "inputfield submitbutton responderchoice"
+        "emojilist emojilist emojilist";
+    grid-template-columns: minmax(auto, 1000px) 60px auto;
+}
 
+#chat_input_field {
+    grid-area: inputfield;
+}
 
 input {
 	all: unset;
 	background-color: var(--secondary);
 	border-radius: 10px;
 	height: 30px;
-	margin-left: 20px;
-	margin-top: 12px;
 	padding: 3px;
 	padding-left:12px;
 	width: 80%;
 	color: var(--primary);
 }
 #emojilist {
-	margin-left: 20px;
-	margin-top:6px;
 	display: inline-block;
+
+	grid-area: emojilist;
 }
 #emojilist span {
 	cursor: pointer;
+}
+
+#messagesubmitbutton {
+    grid-area: submitbutton;
+}
+#user_buttons {
+    grid-area: responderchoice;
 }
 
 #mention_dropdown {

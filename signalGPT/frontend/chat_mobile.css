@@ -43,6 +43,13 @@
         width: 60%;
     }
 
+    #chat_input {
+        grid-template-areas:
+            "inputfield submitbutton"
+            "responderchoice responderchoice";
+        grid-template-columns: auto 50px;
+    }
+
 
 
 }

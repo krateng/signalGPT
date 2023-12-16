@@ -271,18 +271,19 @@
 						</svg>
 					</button>
 					-->
-					<button x-on:click="submitMessageFromInput()">
+					<button id="messagesubmitbutton" x-on:click="submitMessageFromInput()">
 						<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
 							<path d="M1.513 1.96a1.374 1.374 0 0 1 1.499-.21l19.335 9.215a1.147 1.147 0 0 1 0 2.07L3.012 22.25a1.374 1.374 0 0 1-1.947-1.46L2.49 12 1.065 3.21a1.375 1.375 0 0 1 .448-1.25Zm2.375 10.79-1.304 8.042L21.031 12 2.584 3.208l1.304 8.042h7.362a.75.75 0 0 1 0 1.5Z"></path>
 						</svg>
 					</button>
 
-					<br/>
+					<div id="user_buttons">
 					<template x-for="user in (Object.values(selected_chat?.partners || {}))">
 						<button class="user_button" x-bind:style="'background-image:url(' + user.image + ')'" x-bind:title="'Force response from ' + user.name" x-on:click="requestResponse(force_user=user.handle)">
 						</button>
 
 					</template>
+					</div>
 					<span id="emojilist">
 					<template x-for="emoji in getEmojis()">
 						<span onclick="var e = document.getElementById('chat_input_field');e.value = (e.value.substring(0, e.cursorposition) + this.textContent + e.value.substring(e.cursorposition));e.cursorposition += this.textContent.length;e.focus();" x-text="emoji"></span>
