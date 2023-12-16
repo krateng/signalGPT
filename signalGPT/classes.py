@@ -639,7 +639,7 @@ class DirectChat(Chat):
 				'role':"system",
 				'content':"{hours} hours pass... {now}".format(hours=(timenow - lasttimestamp)//3600,now=describe_time(timenow))
 			}
-		elif not messages[-1].is_from_user():
+		elif (len(messages)>0) and (not messages[-1].is_from_user()):
 			yield {
 				'role':"system",
 				'content': "[Continue]"
