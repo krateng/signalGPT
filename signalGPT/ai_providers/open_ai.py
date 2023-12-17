@@ -136,17 +136,18 @@ class OpenAI(AIProvider):
 				total_cost += model.cost_input * cost.prompt_tokens
 				total_cost += model.cost_output * cost.completion_tokens
 
-				funccall3 = msg3.tool_calls[0]
-				args = json.loads(funccall3.function.arguments)
+				if msg3.tool_calls:
+					funccall3 = msg3.tool_calls[0]
+					args = json.loads(funccall3.function.arguments)
 
+					save_debug_file('messagerequest',{'messages':messagelist_for_log,'result':msg.model_dump(),'result_followup':msg2.model_dump(),'result_unfold':msg3.model_dump()})
 
-				save_debug_file('messagerequest',{'messages':messagelist_for_log,'result':msg.model_dump(),'result_followup':msg2.model_dump(),'result_unfold':msg3.model_dump()})
-
-
-				function_call = {
-					'function': called_func['func'],
-					'arguments': {'args':args,'resolve':funccall3.function.name}
-				}
+					function_call = {
+						'function': called_func['func'],
+						'arguments': {'args':args,'resolve':funccall3.function.name}
+					}
+				else:
+					function_call = None
 			else:
 				save_debug_file('messagerequest',{'messages':messagelist_for_log,'result':msg.model_dump(),'result_followup':msg2.model_dump()})
 				function_call = {

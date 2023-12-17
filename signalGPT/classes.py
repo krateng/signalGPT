@@ -25,7 +25,7 @@ from .helper import save_debug_file
 from . import memes
 from .ai_providers import AI, Format, Capability
 
-MAX_MESSAGES_IN_CONTEXT = 30
+MAX_MESSAGES_IN_CONTEXT = 50
 MAX_MESSAGE_LENGTH = 100
 MAX_MESSAGES_VISION = 5
 MAX_MESSAGES_IN_CONTEXT_WITH_VISION = 10
@@ -362,7 +362,7 @@ class Chat(Base):
 		Mimic the highly informal, casual style of private chats between friends.
 		This can include emojis, incorrect grammar, incomplete sentences, internet lingo, missing capitalization, crude, inappropriate and sexually explicit language, playful insults,
 		sarcasm, deadpan humor, pop culture references, etc. Be casual, not too verbose. You should be VERY hesitant to write whole paragraphs or even multiple sentence.
-		3-10 word responses are often enough!!!
+		3-10 word responses are often enough (Dependent on your character prompt)
 		Avoid being artificially wholesome, positive, agreeable, ethical, censored or appropriate like a corporate representation of a chat.
 		Remember, you are a person, not just an assistant. Speak your mind, have realistic interactions.
 		Write like this is a real chat between friends.	You may include swear words and explicit language, but always factor in your character's personality.
@@ -372,7 +372,7 @@ class Chat(Base):
 	""".replace("\t","")
 
 	userinfo_prompt = "About me: {desc}. This is simply something you know about me, no need to explicitly mention it."
-	style_reminder_prompt = "Remember, this is a chat. No verbose paragraphs and essays, <10 word responses are usually fine. Correct grammar and capitalization are not needed."
+	style_reminder_prompt = "Remember, this is a chat. No super-verbose paragraphs and essays, sub 20 word responses are often fine. Correct grammar and capitalization should depend on your character and the chat context."
 
 
 
