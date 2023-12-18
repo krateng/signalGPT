@@ -139,6 +139,42 @@ window.onpopstate = function(event) {
   }
 };
 
+
+
+// touch support
+document.addEventListener("DOMContentLoaded", (event) => {
+  var mc = new Hammer.Manager(document.getElementById('app'), {});
+
+  mc.add( new Hammer.Pan({ direction: Hammer.DIRECTION_HORIZONTAL, threshold: 500 }) );
+
+  mc.on('press', function(ev) {
+    var potentialmsg = ev.target.closest('div.message-content');
+    if (potentialmsg) {
+        element = document.getElementById(potentialmsg.dataset.edittarget);
+        element.contentEditable = true;
+        element.classList.add('editing');
+        element.focus();
+    }
+
+  });
+
+  mc.on('panleft', function(ev) {
+    var potentialmsg = ev.target.closest('div.message-content');
+    if (potentialmsg) {
+        //todo
+    }
+  });
+  mc.on('panright', function(ev) {
+    console.log(ev);
+      var potentialmsg = ev.target.closest('div.message-content');
+      if (potentialmsg) {
+          //todo
+      }
+    });
+});
+
+
+
 window.appdata = {
 	chats:{},
 	contacts:{},

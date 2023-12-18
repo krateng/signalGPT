@@ -8,6 +8,7 @@
 		<link rel="manifest" href="/manifest.json">
 		<script src="//unpkg.com/showdown/dist/showdown.min.js"></script>
 		<script src="//unpkg.com/dompurify/dist/purify.min.js"></script>
+		<script src="//hammerjs.github.io/dist/hammer.js"></script>
 		<script src="chat.js"></script>
 		<script src="//unpkg.com/alpinejs" defer></script>
 		<link rel="shortcut icon" href="/favicon.png" />
@@ -176,7 +177,7 @@
 									<template x-if="['Text','Image','Video','Audio','Contact','Pseudo'].includes(message?.message_type)">
 										<div :id="'message_' + message.uid" :class="(message.own ? 'message sent' : 'message received') + ' ' + (message.regenerating ? 'regenerating' : '')">
 												<img x-on:click="startChat(message.author.handle)" class="profilepic" x-bind:class="message.author?.friend ? 'friend' : ''" x-show="!message.own" x-bind:src="message.author?.image || '/user.png'" alt="Profile Image">
-												<div x-show="!message.display_simplified && message.message_type != 'Pseudo'" class="message-content">
+												<div x-show="!message.display_simplified && message.message_type != 'Pseudo'" class="message-content" :data-edittarget="'msg_txt_' + message.uid">
 														<template x-if="message.message_type == 'Contact'">
 															<div class='contact_in_message contact'>
 																<img class="profilepic" x-bind:class="message.linked_entity?.friend ? 'friend' : ''" x-bind:src="message.linked_entity.image" x-on:click="startChat(message.linked_entity.handle)" />

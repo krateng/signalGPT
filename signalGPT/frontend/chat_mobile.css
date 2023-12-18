@@ -34,6 +34,10 @@
         display:none;
     }
 
+    .admin_icons {
+        display: none;
+    }
+
     #chat_info {
         padding:1px;
     }
