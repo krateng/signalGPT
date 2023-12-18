@@ -25,7 +25,7 @@ from .helper import save_debug_file
 from . import memes, prompts
 from .ai_providers import AI, Format, Capability
 
-MAX_MESSAGES_IN_CONTEXT = 50
+MAX_MESSAGES_IN_CONTEXT = config['ai_prompting_config']['max_context']
 MAX_MESSAGE_LENGTH = 100
 MAX_MESSAGES_VISION = 5
 MAX_MESSAGES_IN_CONTEXT_WITH_VISION = 10
