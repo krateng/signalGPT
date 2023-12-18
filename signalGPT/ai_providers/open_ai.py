@@ -67,6 +67,7 @@ class OpenAI(AIProvider):
 		if any(isinstance(m['content'],list) for m in messagelist[-7:]):
 			model = [m for m in MODELS if m.identifier == self.config['model_vision']][0]
 			print('use vision model!')
+			extraargs = {'max_tokens':500}
 			messagelist_for_log = []
 			for m in messagelist:
 				logm = copy.deepcopy(m)
@@ -79,6 +80,7 @@ class OpenAI(AIProvider):
 		else:
 			model = [m for m in MODELS if m.identifier == self.config['model']][0]
 			messagelist_for_log = messagelist
+			extraargs = {}
 
 		funcargs = {
 			'tools':[{'type':'function','function':f['lazyschema']} for f in chat.get_ai_accessible_funcs().values()],
@@ -88,7 +90,8 @@ class OpenAI(AIProvider):
 		completion = self.client.chat.completions.create(
 			model=model.identifier,
 			messages=messagelist,
-			**funcargs
+			**funcargs,
+			**extraargs
 		)
 
 		total_cost = 0

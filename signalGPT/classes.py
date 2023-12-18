@@ -307,11 +307,15 @@ class Message(Base):
 		if self.message_type in [None,MessageType.Text]:
 			return prefix + self.content
 		elif (self.message_type == MessageType.Image) and vision:
+			if self.content.startswith("data:"):
+				encodedimg = self.content
+			else:
+				encodedimg = image_encode_b64('.' + self.content)
 			msg = [
 				{
 					'type':'image_url',
 					'image_url':{
-						'url': image_encode_b64('.' + self.content)
+						'url': encodedimg
 					}
 				}
 			]
