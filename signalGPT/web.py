@@ -4,7 +4,7 @@ from bottle import get, post, route, delete, static_file, run, request, auth_bas
 from importlib import resources
 import os
 
-from .classes import Session, Partner, Chat, GroupChat, Message, MessageType, generate_uid
+from .classes import ScopedSession, Partner, Chat, GroupChat, Message, MessageType, generate_uid
 from . import config
 
 
@@ -44,7 +44,7 @@ def api_get_userinfo():
 @get("/api/data")
 @auth_basic(is_auth)
 def api_get_data():
-	with Session() as session:
+	with ScopedSession() as session:
 		return {
 			'chats': { chat.uid: chat.serialize_short() for chat in session.query(Chat).all() },
 			'contacts': { partner.handle: partner.serialize() for partner in session.query(Partner).all() },
@@ -55,7 +55,7 @@ def api_get_data():
 @get("/api/contacts")
 @auth_basic(is_auth)
 def api_get_contacts():
-	with Session() as session:
+	with ScopedSession() as session:
 		return {
 			partner.handle: partner.serialize()
 			for partner in session.query(Partner).all()
@@ -65,7 +65,7 @@ def api_get_contacts():
 @get("/api/conversations")
 @auth_basic(is_auth)
 def api_get_conversations():
-	with Session() as session:
+	with ScopedSession() as session:
 		return {
 			chat.uid: chat.serialize_short()
 			for chat in session.query(Chat).all()
@@ -75,7 +75,7 @@ def api_get_conversations():
 @get("/api/chat/<uid>")
 @auth_basic(is_auth)
 def api_get_chat(uid):
-	with Session() as session:
+	with ScopedSession() as session:
 		return session.query(Chat).where(Chat.uid == uid).first().serialize()
 
 
@@ -99,7 +99,7 @@ def api_upload_media():
 @auth_basic(is_auth)
 def api_guess_responder():
 	info = request.json
-	with Session() as session:
+	with ScopedSession() as session:
 		chat = session.query(Chat).where(Chat.uid == info['chat_id']).first()
 		if isinstance(chat,GroupChat):
 			if 'force_user_handle' in info:
@@ -115,7 +115,7 @@ def api_guess_responder():
 def api_generate_message():
 	info = request.json
 	#model = MODEL_ADVANCED if info['bettermodel'] else MODEL_BASE
-	with Session() as session:
+	with ScopedSession() as session:
 		chat = session.query(Chat).where(Chat.uid == info['chat_id']).first()
 		if 'responder_handle' in info:
 			responder = session.query(Partner).where(Partner.handle==info['responder_handle']).first()
@@ -131,7 +131,7 @@ def api_generate_message():
 @auth_basic(is_auth)
 def api_send_message():
 	info = request.json
-	with Session() as session:
+	with ScopedSession() as session:
 		chat = session.query(Chat).where(Chat.uid == info['chat_id']).first()
 		m = chat.send_message(content=info['content'].strip(), msgtype=info.get('messagetype'))
 		# use client timestamp? or just register now?
@@ -147,7 +147,7 @@ def api_send_message_message():
 	file = request.files.get('file')
 	filedata = file.file.read()
 	fileext = file.filename.split('.')[-1].lower()
-	with Session() as session:
+	with ScopedSession() as session:
 		chat = session.query(Chat).where(Chat.uid == info['chat_id']).first()
 		m = chat.send_message(add_media={'extension': fileext, 'rawdata': filedata})
 		session.add(m)
@@ -160,7 +160,7 @@ def api_send_message_message():
 def api_regenerate_message():
 	info = request.json
 	#model = MODEL_ADVANCED if info['bettermodel'] else MODEL_BASE
-	with Session() as session:
+	with ScopedSession() as session:
 		msg = session.query(Message).where(Message.uid == info['uid']).first()
 		chat = msg.chat
 		msgs = list(chat.get_response(replace=msg))
@@ -172,7 +172,7 @@ def api_regenerate_message():
 @get("/api/contact/<handle>")
 @auth_basic(is_auth)
 def api_get_contact(handle):
-	with Session() as session:
+	with ScopedSession() as session:
 		print('return',handle)
 		char = session.query(Partner).where(Partner.handle == handle).first()
 		print('result',char)
@@ -182,7 +182,7 @@ def api_get_contact(handle):
 @auth_basic(is_auth)
 def api_post_contact():
 	info = request.json
-	with Session() as session:
+	with ScopedSession() as session:
 		char = Partner(from_desc=info['desc'])
 		chat = char.start_direct_chat(session)
 		session.add(char)
@@ -195,7 +195,7 @@ def api_post_contact():
 @auth_basic(is_auth)
 def api_patch_contact():
 	info = request.json
-	with Session() as session:
+	with ScopedSession() as session:
 		contact = session.query(Partner).where(Partner.handle == info.pop('handle')).first()
 		dir_chat = info.pop('start_chat', False)
 		contact.__init__(**info)
@@ -210,7 +210,7 @@ def api_patch_contact():
 @auth_basic(is_auth)
 def api_patch_message():
 	info = request.json
-	with Session() as session:
+	with ScopedSession() as session:
 		message = session.query(Message).where(Message.uid == info.pop('uid')).first()
 		message.__init__(**info)
 		session.commit()
@@ -221,7 +221,7 @@ def api_patch_message():
 @auth_basic(is_auth)
 def api_delete_message():
 	info = request.json
-	with Session() as session:
+	with ScopedSession() as session:
 		msg = session.query(Message).where(Message.uid == info.pop('uid')).first()
 		session.delete(msg)
 		session.commit()
@@ -232,7 +232,7 @@ def api_delete_message():
 @auth_basic(is_auth)
 def api_post_groupchat():
 	info = request.json
-	with Session() as session:
+	with ScopedSession() as session:
 		c = GroupChat(**info)
 		session.add(c)
 		session.commit()
@@ -243,7 +243,7 @@ def api_post_groupchat():
 @auth_basic(is_auth)
 def api_patch_chat():
 	info = request.json
-	with Session() as session:
+	with ScopedSession() as session:
 
 		chat = session.query(Chat).where(Chat.uid == info.pop('uid')).first()
 		if 'name' in info and info['name'] != chat.name:
@@ -261,7 +261,7 @@ def api_patch_chat():
 @auth_basic(is_auth)
 def api_delete_chat():
 	info = request.json
-	with Session() as session:
+	with ScopedSession() as session:
 		chat = session.query(Chat).where(Chat.uid == info.pop('uid')).first()
 		for msg in chat.messages:
 			session.delete(msg)
@@ -273,7 +273,7 @@ def api_delete_chat():
 @auth_basic(is_auth)
 def api_add_chat_member():
 	info = request.json
-	with Session() as session:
+	with ScopedSession() as session:
 		chat = session.query(Chat).where(Chat.uid == info.pop('chat_uid')).first()
 		person = session.query(Partner).where(Partner.handle == info.pop('partner_handle')).first()
 		chat.add_person(person)

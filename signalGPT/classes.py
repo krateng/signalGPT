@@ -15,7 +15,7 @@ from pprint import pprint
 
 from sqlalchemy import create_engine, Table, Column, Integer, String, Boolean, Enum, MetaData, ForeignKey, exc, func
 from sqlalchemy.types import TypeDecorator, Text
-from sqlalchemy.orm import sessionmaker, relationship
+from sqlalchemy.orm import sessionmaker, relationship, scoped_session
 from sqlalchemy.ext.declarative import declarative_base
 
 
@@ -340,6 +340,7 @@ class ChatSummary(Base):
 	chat_uid = Column(String,ForeignKey('chats.uid'))
 	chat = relationship('Chat',backref='summaries')
 
+
 class Chat(Base):
 	__tablename__ = 'chats'
 
@@ -393,14 +394,14 @@ class Chat(Base):
 	):
 		"Send contact info of a person you know to the chat. It should only be used when a chat partner explicitly requests their contact details, not simply everytime someone mentions another person."
 
+		session = ScopedSession()
 
-		with Session() as session:
-			char = session.query(Partner).where(Partner.name==name).first()
-			if not char:
-				char = Partner(from_desc=short_description,introduction_context=context_introduction)
-				session.add(char)
-				session.commit()
-			handle = char.handle
+		char = session.query(Partner).where(Partner.name==name).first()
+		if not char:
+			char = Partner(from_desc=short_description,introduction_context=context_introduction)
+			session.add(char)
+			session.commit()
+		handle = char.handle
 
 		if add_to_groupchat and isinstance(self,GroupChat):
 			m = self.add_person(char)
@@ -432,7 +433,7 @@ class Chat(Base):
 
 
 	def serialize(self):
-		return  {
+		return {
 			**self.serialize_short(),
 			'messages':[msg.serialize() for msg in self.get_messages()],
 			'cost':self.readable_cost()
@@ -898,6 +899,9 @@ engine = create_engine('sqlite:///database.sqlite')
 #Base.metadata.drop_all(engine)
 Base.metadata.create_all(engine)
 Session = sessionmaker(bind=engine)
+ScopedSession = scoped_session(Session)
+
+
 
 from .loadfiles import load_all
 load_all()
