@@ -87,6 +87,7 @@ class OpenAI(AIProvider):
 			'tool_choice':('auto' if allow_functioncall else 'none')
 		} if model.functions else {}
 
+		# INITIAL COMPLETION
 		completion = self.client.chat.completions.create(
 			model=model.identifier,
 			messages=messagelist,
@@ -107,7 +108,7 @@ class OpenAI(AIProvider):
 		if toolcalls:
 			funccall = toolcalls[0]
 
-			# ai indicated it wants to use that function, so we now provide it with the full signature
+			# COMPLETION 2 - FULL SIGNATURE OF CALLED FUNCTION
 			called_func = chat.get_ai_accessible_funcs()[funccall.function.name]
 			completion = self.client.chat.completions.create(
 				model=model.identifier,
@@ -124,10 +125,9 @@ class OpenAI(AIProvider):
 			args = json.loads(funccall2.function.arguments)
 
 			if called_func['lazy']:
-				actual_functions = called_func['func'](self=chat)
-				# this is a func that has no args yet to save tokens
-				# once the AI decides to call it, we ask it again, this time with details
 
+				# COMPLETION 3 - EXPAND LAZY FUNCTION
+				actual_functions = called_func['func'](self=chat)
 				completion = self.client.chat.completions.create(
 					model=model.identifier,
 					messages=messagelist,
@@ -151,6 +151,30 @@ class OpenAI(AIProvider):
 					}
 				else:
 					function_call = None
+
+			elif called_func['nonterminating']:
+
+				tool_id = funccall2.id
+
+				# COMPLETION 3 - COMPLETE AFTER CALLING FUNC
+				completion = self.client.chat.completions.create(
+					model=model.identifier,
+					messages=messagelist + [msg2] + [{'role':'tool','tool_call_id':tool_id,'content':"Success!"}],
+					tools=[{'type': 'function', 'function': called_func['schema']}],
+					tool_choice='none'
+				)
+				msg3 = completion.choices[0].message
+				cost = completion.usage
+
+				total_cost += model.cost_input * cost.prompt_tokens
+				total_cost += model.cost_output * cost.completion_tokens
+
+				function_call = {
+					'function': called_func['func'],
+					'arguments': args
+				}
+				text_content = msg3.content
+
 			else:
 				save_debug_file('messagerequest',{'messages':messagelist_for_log,'result':msg.model_dump(),'result_followup':msg2.model_dump()})
 				function_call = {

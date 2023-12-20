@@ -111,11 +111,15 @@ def ai_accessible_function(func):
 
 	return func
 
+
 def lazy(func):
 	func._lazy = True
 	return func
 
 
+def non_terminating(func):
+	func._nonterminating = True
+	return func
 
 
 Base = declarative_base()
@@ -365,7 +369,7 @@ class Chat(Base):
 			fulldict.update(baseclass.__dict__)
 
 		funcs = [f for f in fulldict.values() if getattr(f,'_aiaccessible',False)]
-		funcs = {f.__name__:{'schema':f._schema,'lazyschema':f._lazyschema,'func':f,'lazy':getattr(f,'_lazy',False)} for f in funcs}
+		funcs = {f.__name__:{'schema':f._schema,'lazyschema':f._lazyschema,'func':f,'lazy':getattr(f,'_lazy',False),'nonterminating':getattr(f,'_nonterminating',False)} for f in funcs}
 		return funcs
 
 
@@ -433,6 +437,7 @@ class Chat(Base):
 			return customfuncs
 
 	@ai_accessible_function
+	@non_terminating
 	def update_knowledge_bit(self,author,timestamp,
 		short_desc: (('string',),True,"A short description of the knowledge, e.g. 'Closer relationship' or 'Vacation plans'"),
 		full_desc: (('string',),True,"A concise, objective, third-person summary of the new knowledge, e.g. 'John has invited Amy, Bob and Carol to a vacation in Switzerland. They are currently planning it.'"),
@@ -442,7 +447,7 @@ class Chat(Base):
 	):
 		"""Create or edit a knowledge bit. Use this function when you learn about relevant details concerning your character or relationships, AND when learning details about what you are currently doing.
 		Don't constantly create new bits about things that are already in your knowledge bits.
-		ALWAYS write a normal response first before using this function.
+		Only call this function AFTER you've already returned your chat message!!!
 		You should use knowledge bits to keep track of:
 		- changes to your character or a relationship (when the recent chat indicates that your original prompt is no longer accurate)
 		- things that you learn in the chat that are relevant and should be permanently saved, but are not in your prompt yet
