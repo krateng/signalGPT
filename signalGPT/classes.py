@@ -12,7 +12,7 @@ import math
 from pprint import pprint
 
 
-from sqlalchemy import create_engine, Table, Column, Integer, String, Boolean, Enum, MetaData, ForeignKey, exc, func
+from sqlalchemy import create_engine, Table, Column, Integer, String, Boolean, Enum, ForeignKey, and_
 from sqlalchemy.types import TypeDecorator, Text
 from sqlalchemy.orm import sessionmaker, relationship, scoped_session
 from sqlalchemy.ext.declarative import declarative_base
@@ -212,10 +212,23 @@ class Partner(Base):
 	def get_prompt(self):
 		return prompts.CHARACTER_INSTRUCTION_PROMPT.format(assistant=self)
 
-	def print_message(self,message):
-		print(f"{col[self.color](bold(self.name))}: {message}")
-	def print_type_indicator(self):
-		print(f"{col[self.color](bold(self.name))} {col[self.color]('is typing...')}",end="",flush=True)
+	def get_relevant_knowledge_bits(self,long_term):
+		session = ScopedSession()
+		bits = session.query(KnowledgeBit).where(and_(KnowledgeBit.author == self,KnowledgeBit.long_term == long_term)).all() #for now only owned ones
+		return bits
+
+	def get_knowledge_bit_prompt(self,long_term):
+		if self.get_relevant_knowledge_bits(long_term):
+			if long_term:
+				result = "ADDITIONAL INFO:"
+			else:
+				result = "CURRENT SITUATION:"
+			for bit in self.get_relevant_knowledge_bits(long_term):
+				result += f"\n* [fact:{bit.number}] {bit.desc}"
+			#result += "\nOnly update or remove these knowledge bits when things have significantly changed"
+			return result
+		else:
+			return None
 
 class Protagonist:
 	name = config['user']['name']
@@ -419,6 +432,34 @@ class Chat(Base):
 			return [m]
 		else:
 			return customfuncs
+
+	@ai_accessible_function
+	def update_knowledge_bit(self,author,timestamp,
+		short_desc: (('string',),True,"A short description of the knowledge, e.g. 'Closer relationship' or 'Vacation plans'"),
+		full_desc: (('string',),True,"A concise, objective, third-person summary of the new knowledge, e.g. 'John has invited Amy, Bob and Carol to a vacation in Switzerland. They are currently planning it.'"),
+		#important: (('boolean',),True,"Whether the information is so vital for you that it should always be in your context window. This should be true for significant changes in your character, situation or relationship that affect your base prompt."),
+		long_term: (('boolean',),True,"Whether this is long term information (like your character or relationship having changed) or some temporary info (like what's currently happening)"),
+		number: (('integer',),False,"Only needed when updating an existing knowledge bit.") = None
+	):
+		"""Create or edit a knowledge bit. Use this function when you learn about relevant details concerning your character or relationships, AND when learning details about what you are currently doing.
+		Don't constantly create new bits about things that are already in your knowledge bits.
+		ALWAYS write a normal response first before using this function.
+		You should use knowledge bits to keep track of:
+		- changes to your character or a relationship (when the recent chat indicates that your original prompt is no longer accurate)
+		- things that you learn in the chat that are relevant and should be permanently saved, but are not in your prompt yet
+		- current events that you learned about and that are relevant for your future conversations (e.g. that you currently are in a specific location)
+		Make sure to delete knowledge bits after they are no longer relevant, especially about short term events.
+		Permanent changes to your character or relationship should not be deleted.
+		"""
+
+		session = ScopedSession()
+
+		print('add knowledge',short_desc)
+		kb = KnowledgeBit(shortdesc=short_desc,desc=full_desc,author=author,long_term=long_term,timestamp=timestamp,number=number)
+		session.add(kb)
+		session.commit()
+
+		return []
 
 	def readable_cost(self):
 		cents = self.total_paid // 10000
@@ -780,7 +821,27 @@ class GroupChat(Chat):
 			return m
 
 
+class KnowledgeBit(Base):
+	__tablename__ = 'knowledgebits'
+	uid = Column(Integer,primary_key=True)
 
+	number = Column(Integer)
+	timestamp = Column(Integer)
+	shortdesc = Column(String)
+	desc = Column(String)
+	important = Column(Boolean)
+	long_term = Column(Boolean)
+	author_handle = Column(String,ForeignKey("people.handle"))
+
+	author = relationship("Partner",backref='knowledge')
+
+
+class KnowledgeAccess(Base):
+	__tablename__ = "knowledgebits_access"
+	uid = Column(Integer,primary_key=True)
+
+	bit_uid = Column(Integer,ForeignKey("knowledgebits.uid"))
+	authorized_person_handle = Column(String,ForeignKey("people.handle"))
 
 
 def maintenance():
