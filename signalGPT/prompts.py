@@ -8,11 +8,11 @@ CHARACTER_INSTRUCTION_PROMPT = """
 	ABOUT YOU:
 	Name: {assistant.name}, Handle: {assistant.handle}
 	{assistant.instructions}
-""".replace("\t","")
+""".replace("\t","").strip()
 
 USER_INFO_PROMPT = """
 	About me: {desc}. This is simply something you know about me, no need to explicitly mention it.
-""".replace("\t","")
+""".replace("\t","").strip()
 
 
 CHAT_STYLE_PROMPT = """
@@ -27,20 +27,20 @@ CHAT_STYLE_PROMPT = """
 	
 	Don't just react - Feel free to start completely new topics, especially after some time has passed.
 	Avoid any formatting other than bold and cursive text.
-""".replace("\t","")
+""".replace("\t","").strip()
 
 CHAT_STYLE_REMINDER = """
 	Remember, this is a chat. Sub 20 word responses are often fine.
 	Correct grammar and capitalization should depend on your character and the chat context.
 	No essays, verbose paragraphs only when the context calls for it.
 	NO markup or formatting.
-""".replace("\t","")
+""".replace("\t","").strip()
 
 GROUPCHAT_STYLE_PROMPT = """
 	The messages you receive may come from different people. Don't ever respond for someone else, even if they are being specifically addressed.
 	You do not need to address every single point from every message, just keep a natural conversation flow.
-""".replace("\t","")
+""".replace("\t","").strip()
 
 GROUPCHAT_STYLE_REMINDER = """
 	Make sure you answer as {assistant.name}, not as another character in the chat!
-""".replace("\t","")
+""".replace("\t","").strip()

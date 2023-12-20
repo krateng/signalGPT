@@ -5,7 +5,6 @@ import os
 import random
 import time
 from datetime import datetime, timezone, timedelta
-from doreah.io import col
 import emoji
 import enum
 import math
@@ -24,6 +23,7 @@ from .metaprompt import create_character_info, create_character_image, guess_nex
 from .helper import save_debug_file
 from . import memes, prompts
 from .ai_providers import AI, Format, Capability
+from .loadfiles import load_all
 
 MAX_MESSAGES_IN_CONTEXT = config['ai_prompting_config']['max_context']
 MAX_MESSAGE_LENGTH = 100
@@ -209,9 +209,6 @@ class Partner(Base):
 		with open(os.path.join("partners",self.handle + ".json"),"w") as fd:
 			json.dump(self.serialize(),fd,indent=4)
 
-	def start_conversation(self):
-		return Conversation(partner=self)
-
 	def get_prompt(self):
 		return prompts.CHARACTER_INSTRUCTION_PROMPT.format(assistant=self)
 
@@ -226,8 +223,6 @@ class Protagonist:
 	uid = 0
 	handle = config['user']['handle']
 
-	def print_message(cls,message):
-		print(f"{col[cls.color](bold(cls.name))}: {message}")
 
 class MessageType(enum.Enum):
 	Text = 1
@@ -239,6 +234,7 @@ class MessageType(enum.Enum):
 	MetaLeave = 11
 	MetaRename = 20
 	MetaChangePicture = 21
+
 
 class Message(Base):
 	__tablename__ = 'messages'
@@ -262,12 +258,11 @@ class Message(Base):
 
 		super().__init__(**data)
 
-
 	def get_author(self):
 		return self.author or Protagonist
 
 	def is_from_user(self):
-		return (self.author_handle is None)
+		return self.author_handle is None
 
 	def print(self):
 		self.get_author().print_message(self.content)
@@ -431,14 +426,12 @@ class Chat(Base):
 		remainder = cents % 100
 		return f"USD {dollars}.{remainder:02}"
 
-
 	def serialize(self):
 		return {
 			**self.serialize_short(),
 			'messages':[msg.serialize() for msg in self.get_messages()],
 			'cost':self.readable_cost()
 		}
-
 
 	def add_message(self,author=None,timestamp=None,**keys):
 		if msgt := keys.pop('msgtype',None):
@@ -483,11 +476,6 @@ class Chat(Base):
 	def send_message(self,content=None,msgtype=None):
 		return self.add_message(Protagonist,content=content,msgtype=msgtype)
 
-	def print(self):
-		for msg in self.messages:
-			msg.print()
-
-
 	def get_response(self,replace=None,responder=None):
 		if not responder:
 			responder = replace.author if replace else self.pick_next_responder()
@@ -521,25 +509,6 @@ class Chat(Base):
 		if funccall := result['function_call']:
 			yield from funccall['function'](self=self,author=responder,**funccall['arguments'])
 
-
-	def cmd_chat(self,session):
-		self.print()
-
-		while True:
-			i = input(f"{col[Protagonist.color](Protagonist.name)}: ")
-			if i:
-				m = self.send_message(content=i)
-				session.add(m)
-			else:
-				print('\033[5C\033[2A')
-				print("                   \r",end="")
-				for m in self.get_response():
-					session.add(m)
-					m.author.print_message(m.content)
-					#time.sleep(0.5)
-
-			session.commit()
-
 	def get_summary(self,partner,external=False,timestamp=None):
 
 		messages = self.get_messages(stop_before=timestamp)
@@ -556,8 +525,6 @@ class DirectChat(Chat):
 	partner = relationship('Partner',back_populates='direct_chat',uselist=False)
 
 	__mapper_args__ = {'polymorphic_identity': 'direct'}
-
-
 
 	def serialize_short(self):
 		return {
@@ -626,17 +593,11 @@ class DirectChat(Chat):
 			'content': prompts.CHAT_STYLE_REMINDER
 		}
 
-
-
 	def get_openai_msg_list(self,upto=None,from_perspective=None,images=False):
 		result = list(self.get_openai_messages(upto=upto,images=images))
 		#from pprint import pprint
 		#pprint(result)
 		return result
-
-
-
-
 
 	def clean_content(self,content,responder):
 		return content
@@ -680,7 +641,6 @@ class GroupChat(Chat):
 		m = self.add_message(message_type=MessageType.MetaChangePicture,author=author,content=img)
 		yield m
 
-
 	def serialize_short(self):
 		return {
 			'uid':self.uid,
@@ -693,7 +653,6 @@ class GroupChat(Chat):
 			#'partners':{p.handle:p.name for p in self.members},
 			'latest_message':self.get_messages()[-1].serialize() if self.messages else None
 		}
-
 
 	def get_openai_messages(self,partner,upto=None,images=False):
 		messages = self.get_messages(stop_before=upto)[-MAX_MESSAGES_IN_CONTEXT:]
@@ -734,7 +693,6 @@ class GroupChat(Chat):
 			    'content': "[Previous chat history not visible]"
 			}
 
-
 		lasttimestamp = math.inf
 		for msg in messages:
 			if (msg.timestamp - lasttimestamp) > (config['ai_prompting_config']['message_gap_info_min_hours']*3600):
@@ -774,7 +732,6 @@ class GroupChat(Chat):
 
 		return result
 
-
 	def pick_next_responder(self):
 
 		responder = guess_next_responder(self.get_messages(),self.members,user=Protagonist)
@@ -804,15 +761,11 @@ class GroupChat(Chat):
 
 		return responder
 
-
 	def clean_content(self,content,responder):
 		unwanted_prefix = f"{responder.name}: "
 		if content.startswith(unwanted_prefix):
 			content = content[len(unwanted_prefix):]
 		return content
-
-
-
 
 	def add_person(self,person):
 		if person not in self.members:
@@ -890,10 +843,6 @@ def maintenance():
 		session.commit()
 
 
-
-
-
-
 engine = create_engine('sqlite:///database.sqlite')
 # ONLY TESTING
 #Base.metadata.drop_all(engine)
@@ -902,8 +851,6 @@ Session = sessionmaker(bind=engine)
 ScopedSession = scoped_session(Session)
 
 
-
-from .loadfiles import load_all
 load_all()
 
 
