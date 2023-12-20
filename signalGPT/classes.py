@@ -447,7 +447,6 @@ class Chat(Base):
 	):
 		"""Create or edit a knowledge bit. Use this function when you learn about relevant details concerning your character or relationships, AND when learning details about what you are currently doing.
 		Don't constantly create new bits about things that are already in your knowledge bits.
-		Only call this function AFTER you've already returned your chat message!!!
 		You should use knowledge bits to keep track of:
 		- changes to your character or a relationship (when the recent chat indicates that your original prompt is no longer accurate)
 		- things that you learn in the chat that are relevant and should be permanently saved, but are not in your prompt yet
@@ -595,7 +594,8 @@ class DirectChat(Chat):
 			'content': "\n\n".join([
 				self.partner.get_prompt(),
 				self.partner.get_knowledge_bit_prompt(long_term=True) or "",
-				prompts.USER_INFO_PROMPT.format(desc=config['user']['description'])
+				prompts.USER_INFO_PROMPT.format(desc=config['user']['description']),
+				(self.partner.get_knowledge_bit_prompt(long_term=False) or "")
 			])
 		}
 
@@ -644,8 +644,7 @@ class DirectChat(Chat):
 		yield {
 			'role': "system",
 			'content': "\n\n".join([
-				prompts.CHAT_STYLE_REMINDER,
-				(self.partner.get_knowledge_bit_prompt(long_term=False) or "")
+				prompts.CHAT_STYLE_REMINDER
 			])
 		}
 
@@ -676,11 +675,11 @@ class GroupChat(Chat):
 
 	def get_group_desc_prompt(self,perspective):
 		memberlist = ', '.join(
-			f"{p.name} (@{p.handle})"
-			for p in self.members + [Protagonist] if p is not perspective
+			f"{'You' if p is perspective else p.name} (@{p.handle})"
+			for p in self.members + [Protagonist]
 		)
 
-		return f"Group Chat Name: {self.name}\nGroup Chat Members: You, {memberlist}"
+		return f"Group Chat Name: {self.name}\nGroup Chat Members: {memberlist}"
 
 	@ai_accessible_function
 	def rename_chat(self,author,timestamp,
@@ -729,7 +728,8 @@ class GroupChat(Chat):
 			'content': "\n\n".join([
 				partner.get_prompt(),
 				(partner.get_knowledge_bit_prompt(long_term=True) or ""),
-				prompts.USER_INFO_PROMPT.format(desc=config['user']['description'])
+				prompts.USER_INFO_PROMPT.format(desc=config['user']['description']),
+				(partner.get_knowledge_bit_prompt(long_term=False) or "")
 			])
 		}
 
@@ -792,8 +792,7 @@ class GroupChat(Chat):
 			'role': "system",
 			'content': "\n\n".join([
 				prompts.GROUPCHAT_STYLE_REMINDER.format(assistant=partner) if (len(self.members) > 1) else "",
-				prompts.CHAT_STYLE_REMINDER,
-				(partner.get_knowledge_bit_prompt(long_term=False) or "")
+				prompts.CHAT_STYLE_REMINDER
 			])
 		}
 
@@ -856,7 +855,7 @@ class KnowledgeBit(Base):
 	__tablename__ = 'knowledgebits'
 	uid = Column(Integer,primary_key=True)
 
-	number = Column(Integer)
+	number = Column(Integer,autoincrement=True)
 	timestamp = Column(Integer)
 	shortdesc = Column(String)
 	desc = Column(String)
