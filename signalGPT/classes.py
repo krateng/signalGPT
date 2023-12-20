@@ -215,18 +215,26 @@ class Partner(Base):
 	def get_prompt(self):
 		return prompts.CHARACTER_INSTRUCTION_PROMPT.format(assistant=self)
 
-	def get_relevant_knowledge_bits(self,long_term):
+	def get_relevant_knowledge_bits(self,long_term,time):
 		session = ScopedSession()
-		bits = session.query(KnowledgeBit).where(and_(KnowledgeBit.author == self,KnowledgeBit.long_term == long_term)).all() #for now only owned ones
-		return bits
+		bits = session.query(KnowledgeBit).where(and_(
+			KnowledgeBit.author == self,
+			KnowledgeBit.long_term == long_term,
+			KnowledgeBit.timestamp < time
+		)).all() #for now only owned ones
+		bitmap = {} # hehe
+		for bit in bits:
+			bitmap[bit.number] = bit
+		return bitmap.values()
 
-	def get_knowledge_bit_prompt(self,long_term):
-		if self.get_relevant_knowledge_bits(long_term):
+	def get_knowledge_bit_prompt(self,long_term,time):
+		bits = self.get_relevant_knowledge_bits(long_term,time)
+		if bits:
 			if long_term:
 				result = "ADDITIONAL INFO:"
 			else:
 				result = "CURRENT SITUATION:"
-			for bit in self.get_relevant_knowledge_bits(long_term):
+			for bit in bits:
 				result += f"\n* [fact:{bit.number}] {bit.desc}"
 			#result += "\nOnly update or remove these knowledge bits when things have significantly changed"
 			return result
@@ -443,7 +451,7 @@ class Chat(Base):
 		full_desc: (('string',),True,"A concise, objective, third-person summary of the new knowledge, e.g. 'John has invited Amy, Bob and Carol to a vacation in Switzerland. They are currently planning it.'"),
 		#important: (('boolean',),True,"Whether the information is so vital for you that it should always be in your context window. This should be true for significant changes in your character, situation or relationship that affect your base prompt."),
 		long_term: (('boolean',),True,"Whether this is long term information (like your character or relationship having changed) or some temporary info (like what's currently happening)"),
-		number: (('integer',),False,"Only needed when updating an existing knowledge bit.") = None
+		number: (('integer',),True,"If you update an existing knowledge bit, use its number. Otherwise use an unused number.") = None
 	):
 		"""Create or edit a knowledge bit. Use this function when you learn about relevant details concerning your character or relationships, AND when learning details about what you are currently doing.
 		Don't constantly create new bits about things that are already in your knowledge bits.
@@ -593,9 +601,9 @@ class DirectChat(Chat):
 			'role':"system",
 			'content': "\n\n".join([
 				self.partner.get_prompt(),
-				self.partner.get_knowledge_bit_prompt(long_term=True) or "",
+				self.partner.get_knowledge_bit_prompt(long_term=True,time=timenow) or "",
 				prompts.USER_INFO_PROMPT.format(desc=config['user']['description']),
-				(self.partner.get_knowledge_bit_prompt(long_term=False) or "")
+				(self.partner.get_knowledge_bit_prompt(long_term=False,time=timenow) or "")
 			])
 		}
 
@@ -727,9 +735,9 @@ class GroupChat(Chat):
 			'role':"system",
 			'content': "\n\n".join([
 				partner.get_prompt(),
-				(partner.get_knowledge_bit_prompt(long_term=True) or ""),
+				(partner.get_knowledge_bit_prompt(long_term=True,time=timenow) or ""),
 				prompts.USER_INFO_PROMPT.format(desc=config['user']['description']),
-				(partner.get_knowledge_bit_prompt(long_term=False) or "")
+				(partner.get_knowledge_bit_prompt(long_term=False,time=timenow) or "")
 			])
 		}
 

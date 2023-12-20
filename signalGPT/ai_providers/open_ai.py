@@ -79,7 +79,7 @@ class OpenAI(AIProvider):
 
 		else:
 			model = [m for m in MODELS if m.identifier == self.config['model']][0]
-			messagelist_for_log = messagelist
+			messagelist_for_log = [m for m in messagelist]
 			extraargs = {}
 
 		funcargs = {
@@ -156,10 +156,16 @@ class OpenAI(AIProvider):
 
 				tool_id = funccall2.id
 
+				extramsgs = [msg2.model_dump()] + [{'role':'tool','tool_call_id':tool_id,'content':"Success!"}]
+				messagelist += extramsgs
+				messagelist_for_log += extramsgs
+
+				del extramsgs[0]['function_call'] # weird design but ok
+
 				# COMPLETION 3 - COMPLETE AFTER CALLING FUNC
 				completion = self.client.chat.completions.create(
 					model=model.identifier,
-					messages=messagelist + [msg2] + [{'role':'tool','tool_call_id':tool_id,'content':"Success!"}],
+					messages=messagelist,
 					tools=[{'type': 'function', 'function': called_func['schema']}],
 					tool_choice='none'
 				)
