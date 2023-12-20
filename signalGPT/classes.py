@@ -23,7 +23,6 @@ from .metaprompt import create_character_info, create_character_image, guess_nex
 from .helper import save_debug_file
 from . import memes, prompts
 from .ai_providers import AI, Format, Capability
-from .loadfiles import load_all
 
 MAX_MESSAGES_IN_CONTEXT = config['ai_prompting_config']['max_context']
 MAX_MESSAGE_LENGTH = 100
@@ -585,25 +584,32 @@ class DirectChat(Chat):
 
 		timenow = upto.timestamp if upto else now()
 
+		# CHARACTER
 		yield {
 			'role':"system",
-			'content':self.partner.get_prompt()
-		}
-		yield {
-			'role':"system",
-			'content':prompts.CHAT_STYLE_PROMPT
-		}
-		yield {
-			'role':"system",
-			'content':prompts.USER_INFO_PROMPT.format(desc=config['user']['description'])
+			'content': "\n\n".join([
+				self.partner.get_prompt(),
+				self.partner.get_knowledge_bit_prompt(long_term=True) or "",
+				prompts.USER_INFO_PROMPT.format(desc=config['user']['description'])
+			])
 		}
 
+		# STYLE
+		yield {
+			'role':"system",
+			'content': "\n\n".join([
+				prompts.CHAT_STYLE_PROMPT
+			])
+		}
+
+		# CHAT
 		if len(messages) < 50 and self.partner.introduction_context:
 			yield {
 				'role': "system",
 				'content': "Context for the new chat: " + self.partner.introduction_context
 			}
 
+		# MESSAGES
 		lasttimestamp = math.inf
 		for msg in messages:
 			if (msg.timestamp - lasttimestamp) > (config['ai_prompting_config']['message_gap_info_min_hours']*3600):
@@ -629,9 +635,13 @@ class DirectChat(Chat):
 				'content': "[Continue]"
 			}
 
+		# REMINDERS
 		yield {
 			'role': "system",
-			'content': prompts.CHAT_STYLE_REMINDER
+			'content': "\n\n".join([
+				prompts.CHAT_STYLE_REMINDER,
+				(self.partner.get_knowledge_bit_prompt(long_term=False) or "")
+			])
 		}
 
 	def get_openai_msg_list(self,upto=None,from_perspective=None,images=False):
@@ -658,6 +668,14 @@ class GroupChat(Chat):
 	members = relationship("Partner",secondary=chat_to_member,back_populates="chats")
 
 	__mapper_args__ = {'polymorphic_identity': 'group'}
+
+	def get_group_desc_prompt(self,perspective):
+		memberlist = ', '.join(
+			f"{p.name} (@{p.handle})"
+			for p in self.members + [Protagonist] if p is not perspective
+		)
+
+		return f"Group Chat Name: {self.name}\nGroup Chat Members: You, {memberlist}"
 
 	@ai_accessible_function
 	def rename_chat(self,author,timestamp,
@@ -700,31 +718,34 @@ class GroupChat(Chat):
 
 		timenow = upto.timestamp if upto else now()
 
+		# CHARACTER
 		yield {
 			'role':"system",
-			'content':partner.get_prompt()
+			'content': "\n\n".join([
+				partner.get_prompt(),
+				(partner.get_knowledge_bit_prompt(long_term=True) or ""),
+				prompts.USER_INFO_PROMPT.format(desc=config['user']['description'])
+			])
 		}
-		yield {
-			'role':"system",
-			'content':prompts.CHAT_STYLE_PROMPT + (prompts.GROUPCHAT_STYLE_PROMPT if len(self.members) > 1 else "")
-		}
-		yield {
-			'role':"system",
-			'content':prompts.USER_INFO_PROMPT.format(desc=config['user']['description'])
-		}
-		memberlist = ', '.join(
-			f"{p.name} (@{p.handle})"
-			for p in self.members + [Protagonist] if p is not partner
-		)
-		yield {
-			'role':"system",
-			'content': f"Group Chat Name: {self.name}\nGroup Chat Members: You, {memberlist}"
-		}
-		#yield {
-		#	'role':"user",
-		#	'content':f"[{Protagonist.name} has created the chat]"
-		#}
 
+		# STYLE
+		yield {
+			'role':"system",
+			'content': "\n\n".join([
+				prompts.CHAT_STYLE_PROMPT,
+				(prompts.GROUPCHAT_STYLE_PROMPT if len(self.members) > 1 else "")
+			])
+		}
+
+		# GROUP INFO
+		yield {
+			'role':"system",
+			'content': "\n\n".join([
+				self.get_group_desc_prompt(partner)
+			])
+		}
+
+		# MESSAGES
 		# chat before joining is not visible
 		index = next((i for i, msg in enumerate(messages) if msg.message_type == MessageType.MetaJoin and msg.author == partner), None)
 		if index is not None:
@@ -755,15 +776,20 @@ class GroupChat(Chat):
 				'role':"system",
 				'content':"{hours} hours pass... It's now {now}".format(hours=(timenow - lasttimestamp)//3600,now=describe_time(timenow))
 			}
-
-		if len(self.members) > 1:
+		elif (len(messages)>0) and (messages[-1].author == partner):
 			yield {
 				'role':"system",
-				'content': prompts.GROUPCHAT_STYLE_REMINDER.format(assistant=partner)
+				'content': "[Continue]"
 			}
+
+		# REMINDERS
 		yield {
 			'role': "system",
-			'content': prompts.CHAT_STYLE_REMINDER
+			'content': "\n\n".join([
+				prompts.GROUPCHAT_STYLE_REMINDER.format(assistant=partner) if (len(self.members) > 1) else "",
+				prompts.CHAT_STYLE_REMINDER,
+				(partner.get_knowledge_bit_prompt(long_term=False) or "")
+			])
 		}
 
 	def get_openai_msg_list(self,from_perspective,upto=None,images=False):
@@ -912,7 +938,8 @@ Session = sessionmaker(bind=engine)
 ScopedSession = scoped_session(Session)
 
 
-load_all()
+from . import loadfiles
+loadfiles.load_all()
 
 
 maintenance()
