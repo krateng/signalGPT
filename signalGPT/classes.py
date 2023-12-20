@@ -371,7 +371,7 @@ class Chat(Base):
 
 
 	@ai_accessible_function
-	def send_image(self,author,
+	def send_image(self,author,timestamp,
 		prompt: (('array','string'),True,"Keywords that objectively describe what the image shows to someone who has no context or knowledge of you or this chat.\
 			If the picture includes yourself or other chat participants, make sure the keywords describe your or their appearance to the best of your knowledge. \
 			Don't just add your name, add things like your ethnicity, hair color etc.\
@@ -392,7 +392,7 @@ class Chat(Base):
 		yield m
 
 	@ai_accessible_function
-	def send_contact(self,author,
+	def send_contact(self,author,timestamp,
 		name: (('string',),True,"The contact's informal name - prename or nickname"),
 		male: (('boolean',),True,"True if the contact is male, false if they are female."),
 		short_description: (('string',),True,"Objectively describe the contact. Include name and sex again, but also character, ethnicity, looks, etc. without any relation to the current chat context.\
@@ -421,7 +421,7 @@ class Chat(Base):
 
 	@ai_accessible_function
 	@lazy
-	def send_meme(self,author=None,resolve=None,args={}):
+	def send_meme(self,author,timestamp,resolve=None,args={}):
 		"Send a meme"
 
 		customfuncs = memes.get_functions()
@@ -548,7 +548,7 @@ class Chat(Base):
 
 		# FUNCTIONS
 		if funccall := result['function_call']:
-			yield from funccall['function'](self=self,author=responder,**funccall['arguments'])
+			yield from funccall['function'](self=self,author=responder,timestamp=replace.timestamp if replace else m.timestamp,**funccall['arguments'])
 
 	def get_summary(self,partner,external=False,timestamp=None):
 
@@ -660,7 +660,7 @@ class GroupChat(Chat):
 	__mapper_args__ = {'polymorphic_identity': 'group'}
 
 	@ai_accessible_function
-	def rename_chat(self,author,
+	def rename_chat(self,author,timestamp,
 		name: (('string',),True,"New name")
 	):
 		"Can be used to rename the current group chat. This should be used only when there is a specific reason, or sometimes for comedic effect."
@@ -670,7 +670,7 @@ class GroupChat(Chat):
 		yield m
 
 	@ai_accessible_function
-	def change_group_picture(self,author,
+	def change_group_picture(self,author,timestamp,
 		prompt: (('array','string'),True,"Keywords that describe the image"),
 		prompt_fulltext: (('string',),True,"Full text description of the image"),
 		negative_prompt: (('array','string'),False,"Keywords for undesirable traits or content of the picture.") = []
