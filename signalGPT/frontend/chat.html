@@ -143,9 +143,9 @@
 					<template x-if="selected_chat">
 						<div>
 
-							<span class="chat_window_button" x-show="selected_chat?.messages?.length > 80">Show more...</span>
+							<span class="chat_window_button" x-show="selected_chat?.messages?.length > message_limit" x-on:click="message_limit += 50">Show more...</span>
 
-							<template x-for="[previous,message] in (selected_chat?.messages?.slice(-80).map(arrayValueAndPrev) ?? [])" :key="message.uid">
+							<template x-for="[previous,message] in (selected_chat?.messages?.slice(-1 * message_limit).map(arrayValueAndPrev) ?? [])" :key="message.uid">
 
 								<div>
 									<span class="dateindicator" x-show="!sameDay(message.timestamp,previous?.timestamp)" x-text="formatDate(message.timestamp)"></span>

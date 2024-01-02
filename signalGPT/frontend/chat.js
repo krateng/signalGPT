@@ -179,6 +179,7 @@ window.appdata = {
 	chats:{},
 	contacts:{},
 	selected_chat:null,
+	message_limit:50,
 	selected_newchar_male:false,
 	selected_model_advanced:false,
 	selectChat(uid){
