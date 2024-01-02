@@ -99,6 +99,8 @@ class OpenAI(AIProvider):
 		except openai.BadRequestError as e:
 			if 'content_policy_violation' in e.message:
 				raise errors.ContentPolicyError
+			else:
+				raise
 
 		total_cost = 0
 
