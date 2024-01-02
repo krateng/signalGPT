@@ -241,11 +241,18 @@ class Partner(Base):
 		else:
 			return None
 
+	def sanitized_handle(self):
+		return ''.join(char for char in self.handle if char in 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-')
+
 class Protagonist:
 	name = config['user']['name']
 	color = "blue"
 	uid = 0
 	handle = config['user']['handle']
+
+	@classmethod
+	def sanitized_handle(cls):
+		return cls.handle
 
 
 class MessageType(enum.Enum):
@@ -789,7 +796,7 @@ class GroupChat(Chat):
 			yield {
 				'role':"user" if (msg.get_author() != partner) else "assistant",
 				'content': msg.display_for_model(vision=images),
-				'name': msg.get_author().handle
+				'name': msg.get_author().sanitized_handle()
 			}
 
 		if (timenow - lasttimestamp) > (config['ai_prompting_config']['message_gap_info_min_hours']*3600):
