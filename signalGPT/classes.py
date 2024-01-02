@@ -21,7 +21,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from .__init__ import config
 from .metaprompt import create_character_info, create_character_image, guess_next_responder, summarize_chat
 from .helper import save_debug_file
-from . import memes, prompts
+from . import memes, prompts, errors
 from .ai_providers import AI, Format, Capability
 
 MAX_MESSAGES_IN_CONTEXT = config['ai_prompting_config']['max_context']
@@ -491,6 +491,8 @@ class Chat(Base):
 				'image':MessageType.Image,
 				'video':MessageType.Video
 			}[msgt]
+
+		session = ScopedSession()
 		m = Message(**keys)
 		m.chat = self
 		if author is Protagonist:
@@ -498,6 +500,8 @@ class Chat(Base):
 		else:
 			m.author = author
 		m.timestamp = timestamp or now()
+		session.add(m)
+		session.commit()
 		return m
 
 	def get_messages_upto(self,upto):
@@ -539,7 +543,11 @@ class Chat(Base):
 		if use_vision:
 			messages = messages[-MAX_MESSAGES_IN_CONTEXT_WITH_VISION:]
 
-		result = AI['ChatResponse'].respond_chat(chat=self, messagelist=messages, allow_functioncall=(not replace))
+		try:
+			result = AI['ChatResponse'].respond_chat(chat=self, messagelist=messages, allow_functioncall=(not replace))
+		except errors.ContentPolicyError:
+			messages = self.get_openai_msg_list(from_perspective=responder,upto=replace,images=False)
+			result = AI['ChatResponse'].respond_chat(chat=self, messagelist=messages, allow_functioncall=(not replace))
 
 		self.total_paid += result['cost']
 

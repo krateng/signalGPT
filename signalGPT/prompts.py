@@ -11,7 +11,7 @@ CHARACTER_INSTRUCTION_PROMPT = """
 """.replace("\t","").strip()
 
 USER_INFO_PROMPT = """
-	About me: {desc}. This is simply something you know about me, no need to explicitly mention it.
+	About me: {desc}\nThis is simply something you know about me, no need to explicitly mention it.
 """.replace("\t","").strip()
 
 

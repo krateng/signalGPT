@@ -5,6 +5,7 @@ from collections import namedtuple
 from . import AIProvider, Capability, singleton
 import openai
 
+from .. import errors
 from ..helper import save_debug_file
 
 
@@ -88,12 +89,16 @@ class OpenAI(AIProvider):
 		} if model.functions else {}
 
 		# INITIAL COMPLETION
-		completion = self.client.chat.completions.create(
-			model=model.identifier,
-			messages=messagelist,
-			**funcargs,
-			**extraargs
-		)
+		try:
+			completion = self.client.chat.completions.create(
+				model=model.identifier,
+				messages=messagelist,
+				**funcargs,
+				**extraargs
+			)
+		except openai.BadRequestError as e:
+			if 'content_policy_violation' in e.message:
+				raise errors.ContentPolicyError
 
 		total_cost = 0
 

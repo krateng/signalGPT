@@ -1,0 +1,3 @@
+class ContentPolicyError(Exception):
+	pass
+
