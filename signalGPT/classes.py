@@ -444,7 +444,7 @@ class Chat(Base):
 		else:
 			return customfuncs
 
-	@ai_accessible_function
+	#@ai_accessible_function
 	@non_terminating
 	def update_knowledge_bit(self,author,timestamp,
 		short_desc: (('string',),True,"A short description of the knowledge, e.g. 'Closer relationship' or 'Vacation plans'"),
