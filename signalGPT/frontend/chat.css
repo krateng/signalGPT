@@ -129,6 +129,9 @@ span.mention {
 .contact.selected {
     background-color: var(--secondary);
 }
+.contact.pinned {
+    color: gold;
+}
 
 .contact img {
     width: 80px;

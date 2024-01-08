@@ -22,10 +22,11 @@
 				<div id="contacts" >
 					<!--<span x-text="JSON.stringify(chats)"></span>
 					<span x-text="JSON.stringify(window.appdata.chats)"></span>-->
-						<template x-for="chat in getDictValuesByAttribute(chats,['latest_message','timestamp'],true)" :key="chat.uid">
+						<template x-for="chat in getDictValuesByAttribute(chats,['latest_message','timestamp'],'pinned',true)" :key="chat.uid">
 						<div x-bind:draggable="chat.groupchat ? 'false' : 'true'" class="contact"
 							x-bind:data-chatid="chat.uid" x-bind:id="'chat_' + chat.uid"
-							x-on:click="selectChat(chat.uid)" x-bind:class="chat == selected_chat ? 'selected' : ''"
+							x-on:click="selectChat(chat.uid)"
+							x-bind:class="{'pinned': chat.pinned, 'selected': chat == selected_chat}"
 							x-on:dragstart="dragContact(event)"
 							x-on:dragover.prevent
 							x-on:drop="dragContactReceive(event)"

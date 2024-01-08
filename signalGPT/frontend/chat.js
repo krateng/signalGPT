@@ -83,8 +83,14 @@ function arrayValueAndPrev(element,index,array) {
 	return [array[index-1],element]
 }
 
-function getDictValuesByAttribute(dict,attributes,reverse) {
+function getDictValuesByAttribute(dict,attributes,always_prefer_truthy_attribute,reverse) {
 	var sortfunc = function(a,b){
+	    if (a[always_prefer_truthy_attribute] && !b[always_prefer_truthy_attribute]) {
+	        return -1;
+	    }
+	    else if (!a[always_prefer_truthy_attribute] && b[always_prefer_truthy_attribute]) {
+            return 1;
+        }
 		for (var att of attributes) {
 			a = a?.[att] || 0;
 			b = b?.[att] || 0;

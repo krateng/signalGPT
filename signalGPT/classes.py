@@ -160,8 +160,9 @@ class Partner(Base):
 	prompts = Column(JsonDict)
 	#linguistic_signature = Column(String) # comma separated
 	user_defined = Column(Boolean)
-	friend = Column(Boolean,default=False)
-	color = Column(String,nullable=True)
+	friend = Column(Boolean, default=False)
+	pinned = Column(Boolean, default=False)
+	color = Column(String, nullable=True)
 
 	chats = relationship("GroupChat",secondary=chat_to_member,back_populates="members")
 	direct_chat = relationship('DirectChat',back_populates='partner',uselist=False)
@@ -603,7 +604,8 @@ class DirectChat(Chat):
 			'groupchat':False,
 			#'desc':self.partner.bio,
 			#'image':self.partner.image,
-			'latest_message':self.get_messages()[-1].serialize() if self.messages else None
+			'latest_message':self.get_messages()[-1].serialize() if self.messages else None,
+			'pinned': self.partner.pinned or False
 		}
 
 	def get_openai_messages(self,upto=None,images=False):
@@ -688,9 +690,10 @@ class GroupChat(Chat):
 	__tablename__ = 'groupchats'
 	uid = Column(Integer,ForeignKey('chats.uid'),primary_key=True)
 
-	name = Column(String,default="New Group")
-	desc = Column(String,default="")
+	name = Column(String, default="New Group")
+	desc = Column(String, default="")
 	image = Column(String)
+	pinned = Column(Boolean, default=False)
 
 	members = relationship("Partner",secondary=chat_to_member,back_populates="chats")
 
@@ -737,7 +740,8 @@ class GroupChat(Chat):
 			'partners': [{'ref':'contacts','key':p.handle} for p in self.members],
 			#'partners':[p.serialize() for p in self.partners],
 			#'partners':{p.handle:p.name for p in self.members},
-			'latest_message':self.get_messages()[-1].serialize() if self.messages else None
+			'latest_message':self.get_messages()[-1].serialize() if self.messages else None,
+			'pinned': self.pinned or False
 		}
 
 	def get_openai_messages(self,partner,upto=None,images=False):
