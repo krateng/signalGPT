@@ -130,7 +130,7 @@ span.mention {
     background-color: var(--secondary);
 }
 .contact.pinned {
-    color: gold;
+    color: beige;
 }
 
 .contact img {

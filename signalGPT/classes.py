@@ -575,7 +575,7 @@ class Chat(Base):
 
 		# FUNCTIONS
 		if funccall := result['function_call']:
-			yield from funccall['function'](self=self,author=responder,timestamp=replace.timestamp if replace else m.timestamp,**funccall['arguments'])
+			yield from funccall['function'](self=self,author=responder,timestamp=replace.timestamp if replace else now(),**funccall['arguments'])
 
 	def get_summary(self,partner,external=False,timestamp=None):
 

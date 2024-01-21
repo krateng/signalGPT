@@ -33,7 +33,7 @@ CHAT_STYLE_REMINDER = """
 	Remember, this is a chat. Sub 20 word responses are often fine.
 	Correct grammar and capitalization should depend on your character and the chat context.
 	No essays, verbose paragraphs only when the context calls for it.
-	NO markup or formatting.
+	NO markup or formatting. No hashtags.
 """.replace("\t","").strip()
 
 GROUPCHAT_STYLE_PROMPT = """
