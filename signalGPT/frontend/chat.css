@@ -98,6 +98,10 @@ body {
 	grid-area: newmessage;
 }
 
+#newcontact, #chat_input {
+    padding: 10px;
+}
+
 #newcontact {
 	grid-area: newcontact;
 }
@@ -338,7 +342,6 @@ audio.attached_audio {
 }
 
 #chat_input {
-    padding: 10px;
     display: grid;
     align-items: center;
     justify-content: start;
