@@ -717,6 +717,18 @@ window.appdata = {
 				}
 			})
 	},
+	archiveChat(chat_uid) {
+        patch("/api/chat",{
+                uid:chat_uid,
+                archived:true
+        })
+            .then(result=>{
+                delete this.chats[chat_uid];
+                if (this.selected_chat.uid == chat_uid) {
+                    this.selected_chat = null;
+                }
+            })
+    },
 	userinfo:{},
 	manual_update:0,
 	current_input: "",

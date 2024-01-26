@@ -46,7 +46,7 @@ def api_get_userinfo():
 def api_get_data():
 	with ScopedSession() as session:
 		return {
-			'chats': { chat.uid: chat.serialize_short() for chat in session.query(Chat).all() },
+			'chats': { chat.uid: chat.serialize_short() for chat in session.query(Chat).where(Chat.archived.isnot(True)).all() },
 			'contacts': { partner.handle: partner.serialize() for partner in session.query(Partner).all() },
 			'userinfo': config['user']
 		}
@@ -184,7 +184,7 @@ def api_post_contact():
 	info = request.json
 	with ScopedSession() as session:
 		char = Partner(from_desc=info['desc'])
-		chat = char.start_direct_chat(session)
+		chat = char.start_direct_chat()
 		session.add(char)
 		session.add(chat)
 		session.commit()
@@ -200,7 +200,7 @@ def api_patch_contact():
 		dir_chat = info.pop('start_chat', False)
 		contact.__init__(**info)
 		if dir_chat:
-			contact.start_direct_chat(session)
+			contact.start_direct_chat()
 		session.commit()
 		return contact.serialize()
 

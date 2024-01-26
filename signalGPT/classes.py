@@ -186,17 +186,19 @@ class Partner(Base):
 
 
 
-	def start_direct_chat(self,session):
-		if self.direct_chat:
+	def start_direct_chat(self):
+		if self.direct_chat and not self.direct_chat.archived:
 			return self.direct_chat
 
+		sess = ScopedSession()
 		direct_chat = DirectChat()
 		direct_chat.partner = self
-		session.add(direct_chat)
-		session.commit()
+		sess.add(direct_chat)
+		sess.commit()
 		return direct_chat
 
 	def serialize(self):
+		self.start_direct_chat()
 		return {
 			'name':self.name,
 			'handle':self.handle,
@@ -363,17 +365,18 @@ class Message(Base):
 class ChatSummary(Base):
 	__tablename__ = "chatsummaries"
 
-	uid = Column(Integer,primary_key=True)
+	uid = Column(Integer, primary_key=True)
 	chat_uid = Column(String,ForeignKey('chats.uid'))
-	chat = relationship('Chat',backref='summaries')
+	chat = relationship('Chat', backref='summaries')
 
 
 class Chat(Base):
 	__tablename__ = 'chats'
 
-	uid = Column(Integer,primary_key=True)
+	uid = Column(Integer, primary_key=True)
 	subtype = Column(String)
-	total_paid = Column(Integer,default=0)
+	archived = Column(Boolean, default=False)
+	total_paid = Column(Integer, default=0)
 	# 10 000 = 1 ct
 	# 1 000 000 = 1 usd
 	__mapper_args__ = {'polymorphic_on': subtype}
@@ -904,25 +907,40 @@ class KnowledgeAccess(Base):
 def maintenance():
 	with Session() as session:
 
-		# remove contacts with no chats and no messages sharing them
 		for partner in session.query(Partner).all():
-			if (not partner.chats) and (not partner.direct_chat) and (not partner.friend):
+
+			# remove contacts with no chats and no messages sharing them
+			if (not partner.chats) and (not partner.direct_chat) and (not partner.messages) and (not partner.friend):
 				for msg in session.query(Message).all():
 					if msg.message_type == MessageType.Contact and msg.linked_contact == partner:
-						print("Not deleting",partner.name,"because they are sent as a contact.")
+						print("Not deleting", partner.name, "because they are sent as a contact.")
 						break
 				else:
-					print("Deleting",partner.name)
+					print("Deleting", partner.name)
 					session.delete(partner)
+
+			# archive contacts when their only references are archived
+			if all(chat.archived for chat in partner.chats) and ((not partner.direct_chat) or partner.direct_chat.archived) and (not partner.friend):
+				for msg in session.query(Message).all():
+					if msg.message_type == MessageType.Contact and msg.linked_contact == partner:
+						if not msg.chat.archived:
+							print("Not archiving", partner.name, "because they are sent as a contact")
+							break
+				else:
+					print("Archiving", partner.name)
+					# do nothing for now
+
+			# chat for friends
 			if partner.friend:
-				partner.start_direct_chat(session)
+				partner.start_direct_chat()
+
 		session.commit()
 
 		# update legacy data
 		for msg in  session.query(Message).all():
 			if msg.media_attached:
 				if msg.content:
-					print("Message",msg,"contains both content and media_attached!")
+					print("Message", msg, "contains both content and media_attached!")
 				else:
 					print("DB Legacy update!")
 					msg.content = msg.media_attached
@@ -948,7 +966,7 @@ def maintenance():
 					media.remove(obj.media_attached)
 		for filepath in media:
 			realfile = 'media/' + filepath.split('/')[-1]
-			print('Delete',realfile)
+			print('Delete', realfile)
 			os.remove(realfile)
 
 		# make sure group titles are correct
@@ -956,7 +974,7 @@ def maintenance():
 			rename_msgs = [msg for msg in groupchat.get_messages() if msg.message_type == MessageType.MetaRename]
 			if rename_msgs:
 				if rename_msgs[-1].content != groupchat.name:
-					print("Renaming",groupchat.name,"to",rename_msgs[-1].content)
+					print("Renaming", groupchat.name, "to", rename_msgs[-1].content)
 					groupchat.name = rename_msgs[-1].content
 		session.commit()
 

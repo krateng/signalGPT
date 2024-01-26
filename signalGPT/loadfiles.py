@@ -45,7 +45,7 @@ def load_conversation(data):
 def load_direct_conversation(data):
 	with Session() as session:
 		p = session.query(Partner).where(Partner.handle==data['partner']).first()
-		chat = p.start_direct_chat(session)
+		chat = p.start_direct_chat()
 		#session.add(chat)
 
 		for msg in data['messages']:
