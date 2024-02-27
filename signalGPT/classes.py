@@ -28,6 +28,7 @@ MAX_MESSAGES_IN_CONTEXT = config['ai_prompting_config']['max_context']
 MAX_MESSAGE_LENGTH = 100
 MAX_MESSAGES_VISION = 5
 MAX_MESSAGES_IN_CONTEXT_WITH_VISION = 10
+ALL_MESSAGES_IN_CONTEXT = True
 
 
 
@@ -127,24 +128,23 @@ Base = declarative_base()
 
 # CUSTOM COLUMN TYPE
 class JsonDict(TypeDecorator):
-    impl = Text
+	impl = Text
 
-    def process_bind_param(self, value, dialect):
-        if value is not None:
-            value = json.dumps(value)
-        return value
+	def process_bind_param(self, value, dialect):
+		if value is not None:
+			value = json.dumps(value)
+		return value
 
-    def process_result_value(self, value, dialect):
-        if value is not None:
-            value = json.loads(value)
-        return value
+	def process_result_value(self, value, dialect):
+		if value is not None:
+			value = json.loads(value)
+		return value
 
 # ASSOCIATIONS
 chat_to_member = Table('chat_members',Base.metadata,
 	Column("chat_id",Integer,ForeignKey('chats.uid')),
 	Column("person_handle",String,ForeignKey('people.handle'))
 )
-
 
 
 class Partner(Base):
@@ -196,6 +196,21 @@ class Partner(Base):
 		sess.add(direct_chat)
 		sess.commit()
 		return direct_chat
+
+	def get_all_accessible_messages(self, stop_before=None):
+		chats = [chat for chat in self.chats + [self.direct_chat] if chat]
+		msgs = [msg for chat in chats for msg in chat.messages]
+		msgs = sorted(msgs, key=lambda x: x.timestamp)
+		if stop_before:
+			relevant_messages = []
+			for msg in msgs:
+				if (msg is stop_before) or (isinstance(stop_before,int) and (msg.timestamp >= stop_before)):
+					break
+				else:
+					relevant_messages.append(msg)
+			return relevant_messages
+		else:
+			return msgs
 
 	def serialize(self):
 		self.start_direct_chat()
@@ -612,7 +627,10 @@ class DirectChat(Chat):
 		}
 
 	def get_openai_messages(self,upto=None,images=False):
-		messages = self.get_messages(stop_before=upto)[-MAX_MESSAGES_IN_CONTEXT:]
+		if ALL_MESSAGES_IN_CONTEXT:
+			messages = self.partner.get_all_accessible_messages(stop_before=upto)[-MAX_MESSAGES_IN_CONTEXT:]
+		else:
+			messages = self.get_messages(stop_before=upto)[-MAX_MESSAGES_IN_CONTEXT:]
 
 		timenow = upto.timestamp if upto else now()
 
@@ -644,17 +662,27 @@ class DirectChat(Chat):
 
 		# MESSAGES
 		lasttimestamp = math.inf
+		lastmsg: Message = None
 		for msg in messages:
 			if (msg.timestamp - lasttimestamp) > (config['ai_prompting_config']['message_gap_info_min_hours']*3600):
 				yield {
 					'role':"system",
 					'content':"{hours} hours pass... {now}".format(hours=(timenow - lasttimestamp)//3600,now=describe_time(msg.timestamp))
 				}
+
+			if ALL_MESSAGES_IN_CONTEXT and lastmsg and lastmsg.chat != msg.chat:
+				yield {
+					'role': "system",
+					'content': f"--- CONTEXT SWITCH: {('Group Chat ' + msg.chat.name) if isinstance(msg.chat, GroupChat) else 'Private Chat'} ---"
+				}
+
 			lasttimestamp = msg.timestamp
+			lastmsg = msg
 
 			yield {
-				'role':"user" if (msg.is_from_user()) else "assistant",
-				'content': msg.display_for_model(vision=images)
+				'role': "user" if (msg.get_author() != self.partner) else "assistant",
+				'content': msg.display_for_model(vision=images),
+				'name': msg.get_author().sanitized_handle()
 			}
 
 		if (timenow - lasttimestamp) > (config['ai_prompting_config']['message_gap_info_min_hours']*3600):
@@ -666,6 +694,12 @@ class DirectChat(Chat):
 			yield {
 				'role':"system",
 				'content': "[Continue]"
+			}
+
+		if ALL_MESSAGES_IN_CONTEXT and lastmsg and lastmsg.chat != self:
+			yield {
+				'role': "system",
+				'content': f"--- CONTEXT SWITCH: Private Chat ---"
 			}
 
 		# REMINDERS
@@ -747,8 +781,11 @@ class GroupChat(Chat):
 			'pinned': self.pinned or False
 		}
 
-	def get_openai_messages(self,partner,upto=None,images=False):
-		messages = self.get_messages(stop_before=upto)[-MAX_MESSAGES_IN_CONTEXT:]
+	def get_openai_messages(self, partner, upto=None, images=False):
+		if ALL_MESSAGES_IN_CONTEXT:
+			messages = partner.get_all_accessible_messages(stop_before=upto)[-MAX_MESSAGES_IN_CONTEXT:]
+		else:
+			messages = self.get_messages(stop_before=upto)[-MAX_MESSAGES_IN_CONTEXT:]
 
 		timenow = upto.timestamp if upto else now()
 
@@ -791,14 +828,22 @@ class GroupChat(Chat):
 			}
 
 		lasttimestamp = math.inf
+		lastmsg: Message = None
 		for msg in messages:
 			if (msg.timestamp - lasttimestamp) > (config['ai_prompting_config']['message_gap_info_min_hours']*3600):
 				yield {
 					'role':"system",
 					'content':"{hours} hours pass... It's now {now}".format(hours=(timenow - lasttimestamp)//3600,now=describe_time(msg.timestamp))
 				}
-			lasttimestamp = msg.timestamp
 
+			if ALL_MESSAGES_IN_CONTEXT and lastmsg and lastmsg.chat != msg.chat:
+				yield {
+					'role': "system",
+					'content': f"--- CONTEXT SWITCH: {('Group Chat ' + msg.chat.name) if isinstance(msg.chat, GroupChat) else 'Private Chat'} ---"
+				}
+
+			lasttimestamp = msg.timestamp
+			lastmsg = msg
 
 			yield {
 				'role':"user" if (msg.get_author() != partner) else "assistant",
@@ -815,6 +860,12 @@ class GroupChat(Chat):
 			yield {
 				'role':"system",
 				'content': "[Continue]"
+			}
+
+		if ALL_MESSAGES_IN_CONTEXT and lastmsg and lastmsg.chat != self:
+			yield {
+				'role': "system",
+				'content': f"--- CONTEXT SWITCH: Group Chat {self.name}---"
 			}
 
 		# REMINDERS
