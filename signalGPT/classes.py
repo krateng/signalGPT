@@ -199,18 +199,9 @@ class Partner(Base):
 
 	def get_all_accessible_messages(self, stop_before=None):
 		chats = [chat for chat in self.chats + [self.direct_chat] if chat]
-		msgs = [msg for chat in chats for msg in chat.messages]
+		msgs = [msg for chat in chats for msg in chat.get_messages(stop_before=stop_before, visible_to=self)]
 		msgs = sorted(msgs, key=lambda x: x.timestamp)
-		if stop_before:
-			relevant_messages = []
-			for msg in msgs:
-				if (msg is stop_before) or (isinstance(stop_before,int) and (msg.timestamp >= stop_before)):
-					break
-				else:
-					relevant_messages.append(msg)
-			return relevant_messages
-		else:
-			return msgs
+		return msgs
 
 	def serialize(self):
 		self.start_direct_chat()
@@ -542,18 +533,27 @@ class Chat(Base):
 		else:
 			return self.messages
 
-	def get_messages(self,stop_before=None):
-		msgs = sorted(self.messages,key=lambda x:x.timestamp)
+	def get_messages(self, stop_before=None, visible_to: Partner = None):
+		msgs = sorted(self.messages, key=lambda x: x.timestamp)
+
+		if visible_to:
+			relevant_messages = []
+			for msg in msgs:
+				if msg.message_type == MessageType.MetaJoin and msg.author == visible_to:
+					relevant_messages = []
+				relevant_messages.append(msg)
+			msgs = relevant_messages
+
 		if stop_before:
 			relevant_messages = []
 			for msg in msgs:
-				if (msg is stop_before) or (isinstance(stop_before,int) and (msg.timestamp >= stop_before)):
+				if (msg is stop_before) or (isinstance(stop_before, int) and (msg.timestamp >= stop_before)):
 					break
 				else:
 					relevant_messages.append(msg)
-			return relevant_messages
-		else:
-			return msgs
+			msgs = relevant_messages
+
+		return msgs
 
 	def send_message(self,content=None,msgtype=None):
 		return self.add_message(Protagonist,content=content,msgtype=msgtype)
@@ -785,7 +785,7 @@ class GroupChat(Chat):
 		if ALL_MESSAGES_IN_CONTEXT:
 			messages = partner.get_all_accessible_messages(stop_before=upto)[-MAX_MESSAGES_IN_CONTEXT:]
 		else:
-			messages = self.get_messages(stop_before=upto)[-MAX_MESSAGES_IN_CONTEXT:]
+			messages = self.get_messages(stop_before=upto, visible_to=partner)[-MAX_MESSAGES_IN_CONTEXT:]
 
 		timenow = upto.timestamp if upto else now()
 
@@ -819,13 +819,13 @@ class GroupChat(Chat):
 
 		# MESSAGES
 		# chat before joining is not visible
-		index = next((i for i, msg in enumerate(messages) if msg.message_type == MessageType.MetaJoin and msg.author == partner), None)
-		if index is not None:
-			messages = messages[index:]
-			yield {
-			    'role': "system",
-			    'content': "[Previous chat history not visible]"
-			}
+		#index = next((i for i, msg in enumerate(messages) if msg.message_type == MessageType.MetaJoin and msg.author == partner), None)
+		#if index is not None:
+		#	messages = messages[index:]
+		#	yield {
+		#	    'role': "system",
+		#	    'content': "[Previous chat history not visible]"
+		#	}
 
 		lasttimestamp = math.inf
 		lastmsg: Message = None
