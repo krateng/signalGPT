@@ -662,7 +662,8 @@ class DirectChat(Chat):
 
 		# MESSAGES
 		lasttimestamp = math.inf
-		lastmsg: Message = None
+		lastchat: Chat = self
+		# use self as first last chat so the context switch is announced after giving meta info about this chat
 		for msg in messages:
 			if (msg.timestamp - lasttimestamp) > (config['ai_prompting_config']['message_gap_info_min_hours']*3600):
 				yield {
@@ -670,14 +671,14 @@ class DirectChat(Chat):
 					'content':"{hours} hours pass... {now}".format(hours=(timenow - lasttimestamp)//3600,now=describe_time(msg.timestamp))
 				}
 
-			if ALL_MESSAGES_IN_CONTEXT and lastmsg and lastmsg.chat != msg.chat:
+			if ALL_MESSAGES_IN_CONTEXT and lastchat and lastchat != msg.chat:
 				yield {
 					'role': "system",
 					'content': f"--- CONTEXT SWITCH: {('Group Chat ' + msg.chat.name) if isinstance(msg.chat, GroupChat) else 'Private Chat'} ---"
 				}
 
 			lasttimestamp = msg.timestamp
-			lastmsg = msg
+			lastchat = msg.chat
 
 			yield {
 				'role': "user" if (msg.get_author() != self.partner) else "assistant",
@@ -696,7 +697,7 @@ class DirectChat(Chat):
 				'content': "[Continue]"
 			}
 
-		if ALL_MESSAGES_IN_CONTEXT and lastmsg and lastmsg.chat != self:
+		if ALL_MESSAGES_IN_CONTEXT and lastchat and lastchat != self:
 			yield {
 				'role': "system",
 				'content': f"--- CONTEXT SWITCH: Private Chat ---"
@@ -828,7 +829,7 @@ class GroupChat(Chat):
 		#	}
 
 		lasttimestamp = math.inf
-		lastmsg: Message = None
+		lastchat: Chat = self
 		for msg in messages:
 			if (msg.timestamp - lasttimestamp) > (config['ai_prompting_config']['message_gap_info_min_hours']*3600):
 				yield {
@@ -836,14 +837,14 @@ class GroupChat(Chat):
 					'content':"{hours} hours pass... It's now {now}".format(hours=(timenow - lasttimestamp)//3600,now=describe_time(msg.timestamp))
 				}
 
-			if ALL_MESSAGES_IN_CONTEXT and lastmsg and lastmsg.chat != msg.chat:
+			if ALL_MESSAGES_IN_CONTEXT and lastchat and lastchat != msg.chat:
 				yield {
 					'role': "system",
 					'content': f"--- CONTEXT SWITCH: {('Group Chat ' + msg.chat.name) if isinstance(msg.chat, GroupChat) else 'Private Chat'} ---"
 				}
 
 			lasttimestamp = msg.timestamp
-			lastmsg = msg
+			lastchat = msg.chat
 
 			yield {
 				'role':"user" if (msg.get_author() != partner) else "assistant",
@@ -862,7 +863,7 @@ class GroupChat(Chat):
 				'content': "[Continue]"
 			}
 
-		if ALL_MESSAGES_IN_CONTEXT and lastmsg and lastmsg.chat != self:
+		if ALL_MESSAGES_IN_CONTEXT and lastchat and lastchat != self:
 			yield {
 				'role': "system",
 				'content': f"--- CONTEXT SWITCH: Group Chat {self.name}---"
