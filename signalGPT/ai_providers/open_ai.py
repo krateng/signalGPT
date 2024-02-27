@@ -17,6 +17,7 @@ MODELS = [
 	GPTModel('gpt-4-32k',60,120,False,True,32768),
 	GPTModel('gpt-4-1106-preview',10,30,False,True,128000),
 	GPTModel('gpt-4-vision-preview',10,30,True,False,128000),
+	GPTModel('gpt-4-0125-preview',10,30,True,False,128000)
 ]
 
 
