@@ -620,7 +620,7 @@ class Chat(Base):
 			if (msg.timestamp - lasttimestamp) > (config['ai_prompting_config']['message_gap_info_min_hours']*3600):
 				yield {
 					'role': "system",
-					'content': "{hours} hours pass... It's now {now}".format(hours=(timenow - lasttimestamp)//3600,now=describe_time(msg.timestamp))
+					'content': "{hours} hours pass... It's now {now}".format(hours=(timenow - lasttimestamp)//3600, now=describe_time(msg.timestamp))
 				}
 
 			if ALL_MESSAGES_IN_CONTEXT and lastchat and lastchat != msg.chat:
@@ -633,7 +633,7 @@ class Chat(Base):
 			lastchat = msg.chat
 
 			yield {
-				'role':"user" if (msg.get_author() != partner) else "assistant",
+				'role': "user" if (msg.get_author() != partner) else "assistant",
 				'content': msg.display_for_model(vision=images),
 				'name': msg.get_author().sanitized_handle()
 			}

@@ -66,7 +66,7 @@ class OpenAI(AIProvider):
 
 		self.init_client()
 
-		if any(isinstance(m['content'],list) for m in messagelist[-7:]):
+		if any(isinstance(m['content'], list) for m in messagelist):
 			model = [m for m in MODELS if m.identifier == self.config['model_vision']][0]
 			print('use vision model!')
 			extraargs = {'max_tokens':500}
@@ -85,8 +85,8 @@ class OpenAI(AIProvider):
 			extraargs = {}
 
 		funcargs = {
-			'tools':[{'type':'function','function':f['lazyschema']} for f in chat.get_ai_accessible_funcs().values()],
-			'tool_choice':('auto' if allow_functioncall else 'none')
+			'tools': [{'type': 'function', 'function': f['lazyschema']} for f in chat.get_ai_accessible_funcs().values()],
+			'tool_choice': ('auto' if allow_functioncall else 'none')
 		} if model.functions else {}
 
 		# INITIAL COMPLETION
