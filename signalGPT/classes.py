@@ -4,6 +4,7 @@ import mimetypes
 import os
 import random
 import time
+import typing
 from datetime import datetime, timezone, timedelta
 from typing import Iterable, List
 
@@ -81,38 +82,62 @@ def image_encode_b64(filename):
 	return f'data:{mime_type};base64,{encoded_string}'
 
 
-def ai_accessible_function(func):
-	func._aiaccessible = True
+type_mapping = {
+	int: 'integer',
+	float: 'number',
+	str: 'string',
+	bool: 'boolean'
+}
 
-	func._lazyschema = {
-		'name':func.__name__,
-		'description':func.__doc__,
-		'parameters':{
-			'type':'object',
-			'properties':{}
-		}
-	}
 
-	func._schema = {
-		**func._lazyschema,
-		'parameters':{
-			'type':'object',
-			'required':[param for param in func.__annotations__ if func.__annotations__[param][1]],
-			'properties':{
-				name: {
-					'type':type[0],
-					'items': {'type':type[1] },
-					'description': desc
-				} if len(type)>1 else {
-					'type':type[0],
-					'description': desc
-				}
-				for name,(type,req,desc) in func.__annotations__.items()
+def ai_accessible_function(**argument_descriptions):
+	def ai_accessible_maker(func):
+
+		func._aiaccessible = True
+
+		func._lazyschema = {
+			'name': func.__name__,
+			'description': func.__doc__,
+			'parameters': {
+				'type': 'object',
+				'properties': {}
 			}
 		}
-	}
 
-	return func
+		func._schema = {
+			**func._lazyschema,
+			'parameters': {
+				'type': 'object',
+				'required': [param for param in func.__annotations__ if param not in ('author', 'timestamp')], # todo check defaults
+				'properties': {}
+			}
+		}
+
+		for param, annotation in typing.get_type_hints(func).items():
+			if param in ('author', 'timestamp'):
+				continue
+
+			annotation_local = annotation
+
+			if hasattr(annotation_local, '__args__') and type(None) in annotation_local.__args__:
+				func._schema['parameters']['required'].remove(param)
+				annotation_local = [a for a in annotation_local.__args__ if a is not type(None)][0]
+
+			if hasattr(annotation_local, '__origin__') and annotation_local.__origin__ == list:
+				func._schema['parameters']['properties'][param] = {
+					'type': 'array',
+					'items': {'type': type_mapping[annotation_local.__args__[0]] },
+					'description': argument_descriptions[param]
+				}
+			else:
+				func._schema['parameters']['properties'][param] = {
+					'type': type_mapping[annotation_local],
+					'description': argument_descriptions[param]
+				}
+
+		return func
+
+	return ai_accessible_maker
 
 
 def lazy(func):
@@ -389,17 +414,24 @@ class Chat(Base):
 		funcs = {f.__name__:{'schema':f._schema,'lazyschema':f._lazyschema,'func':f,'lazy':getattr(f,'_lazy',False),'nonterminating':getattr(f,'_nonterminating',False)} for f in funcs}
 		return funcs
 
-	@ai_accessible_function
-	def send_image(self, author: Partner | Protagonist, timestamp: int,
-		prompt: (('array','string'),True,"Keywords that objectively describe what the image shows to someone who has no context or knowledge of you or this chat.\
+	@ai_accessible_function(
+		prompt="Keywords that objectively describe what the image shows to someone who has no context or knowledge of you or this chat.\
 			If the picture includes yourself or other chat participants, make sure the keywords describe your or their appearance to the best of your knowledge. \
 			Don't just add your name, add things like your ethnicity, hair color etc.\
-			You may use quite a few keywords here and go into detail.") = [],
-		prompt_fulltext: (('string',),True,"The prompt for the image, but as a continuous descriptive text.") = "" ,
-		negative_prompt: (('array','string'),False,"Keywords for undesirable traits or content of the picture.") = [],
-		selfie: (('boolean',),True,"Whether this is a picture of yourself.")=False,
-		short_desc: (('string',),True,"A short description of what the picture shows for visually impaired users.") = "",
-		landscape: (('boolean',),False,"Whether to send a picture in landscape mode instead of portrait mode") = False
+			You may use quite a few keywords here and go into detail.",
+		prompt_fulltext="The prompt for the image, but as a continuous descriptive text.",
+		negative_prompt="Keywords for undesirable traits or content of the picture.",
+		selfie="Whether this is a picture of yourself.",
+		short_desc="A short description of what the picture shows for visually impaired users.",
+		landscape="Whether to send a picture in landscape mode instead of portrait mode"
+	)
+	def send_image(self, author: Partner | Protagonist, timestamp: int,
+				   prompt: List[str],
+				   prompt_fulltext: str = "",
+				   negative_prompt: List[str] = [],
+				   selfie: bool = False,
+				   short_desc: str = "",
+				   landscape: bool = False
 	):
 		"Send an image in the chat. It should be used very rarely, only when sending a picture fits the context or is requested.\
 		You also cannot randomly send pictures of other people, unless context indicates that you're currently in the same loction together.\
@@ -410,15 +442,22 @@ class Chat(Base):
 		m = self.add_message(author=author,message_type=MessageType.Image,content=img,content_secondary=short_desc)
 		yield m
 
-	@ai_accessible_function
+	@ai_accessible_function(
+		name="The contact's informal name - prename or nickname",
+		male="True if the contact is male, false if they are female.",
+		short_description="Objectively describe the contact. Include name and sex again, but also character, ethnicity, looks, etc. without any relation to the current chat context.\
+			Please do not editorialize this according to your character, but write neutrally.",
+		context_introduction="A summary directed at the new contact (in second person), detailing all interactions and relevant events involving them up to this point \
+			(even their own actions and opinions), speaking as a neutral instructor (not yourself).",
+		add_to_groupchat="Whether to add this contact to the chat instead of simply sending them. Only works in group chats."
+	)
 	def send_contact(self, author: Partner | Protagonist, timestamp: int,
-		name: (('string',),True,"The contact's informal name - prename or nickname"),
-		male: (('boolean',),True,"True if the contact is male, false if they are female."),
-		short_description: (('string',),True,"Objectively describe the contact. Include name and sex again, but also character, ethnicity, looks, etc. without any relation to the current chat context.\
-		Please do not editorialize this according to your character, but write neutrally."),
-		context_introduction: (('string',),True,"A summary directed at the new contact (in second person), detailing all interactions and relevant events involving them up to this point (even their own actions and opinions), speaking as a neutral instructor (not yourself)."),
-		add_to_groupchat: (('boolean',),False,"Whether to add this contact to the chat instead of simply sending them. Only works in group chats.") = False
-	):
+						name: str,
+						male: bool,
+						short_description: str,
+						context_introduction: str,
+						add_to_groupchat: bool | None = False
+					):
 		"Send contact info of a person you know to the chat. It should only be used when a chat partner explicitly requests their contact details, not simply everytime someone mentions another person."
 
 		session = ScopedSession()
@@ -437,9 +476,9 @@ class Chat(Base):
 			m = self.add_message(author=author, message_type=MessageType.Contact, linked_contact=char)
 			yield m
 
-	@ai_accessible_function
+	@ai_accessible_function()
 	@lazy
-	def send_meme(self, author: Partner | Protagonist,timestamp: int, resolve=None, args={}):
+	def send_meme(self, author: Partner | Protagonist = None, timestamp: int = None, resolve=None, args={}):
 		"Send a meme"
 
 		customfuncs = memes.get_functions()
@@ -735,22 +774,28 @@ class GroupChat(Chat):
 	def ai_participants(self):
 		return self.members
 
-	@ai_accessible_function
-	def rename_chat(self,author,timestamp,
-		name: (('string',),True,"New name")
-	):
+	@ai_accessible_function(
+		name="New name"
+	)
+	def rename_chat(self, author, timestamp,
+						name: str
+					):
 		"Can be used to rename the current group chat. This should be used only when there is a specific reason, or sometimes for comedic effect."
 
 		self.name = name
-		m = self.add_message(message_type=MessageType.MetaRename,author=author,content=name)
+		m = self.add_message(message_type=MessageType.MetaRename, author=author, content=name)
 		yield m
 
-	@ai_accessible_function
+	@ai_accessible_function(
+		prompt="Keywords that describe the image",
+		prompt_fulltext="Full text description of the image",
+		negative_prompt="Keywords for undesirable traits or content of the picture."
+	)
 	def change_group_picture(self, author: Partner | Protagonist, timestamp: int,
-		prompt: (('array','string'),True,"Keywords that describe the image"),
-		prompt_fulltext: (('string',),True,"Full text description of the image"),
-		negative_prompt: (('array','string'),False,"Keywords for undesirable traits or content of the picture.") = []
-	):
+							 prompt: List[str],
+							 prompt_fulltext: str,
+							 negative_prompt: List[str] | None = []
+							 ):
 		"Can be used to change the group picture. This should only be used when there is a specific reason, or rarely for comedic effect."
 
 		img = AI['ImageGeneration'].create_image(keyword_prompt=prompt, keyword_prompt_negative=negative_prompt, fulltext_prompt=prompt_fulltext, imageformat=Format.Square)
