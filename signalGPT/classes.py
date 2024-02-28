@@ -555,6 +555,98 @@ class Chat(Base):
 
 		return msgs
 
+	def get_openai_messages(self, partner, upto=None, images=False):
+		if ALL_MESSAGES_IN_CONTEXT:
+			messages = partner.get_all_accessible_messages(stop_before=upto)[-MAX_MESSAGES_IN_CONTEXT:]
+		else:
+			messages = self.get_messages(stop_before=upto, visible_to=partner)[-MAX_MESSAGES_IN_CONTEXT:]
+
+		timenow = upto.timestamp if upto else now()
+
+		# CHARACTER
+		yield {
+			'role':"system",
+			'content': "\n\n".join([
+				partner.get_prompt(),
+				(partner.get_knowledge_bit_prompt(long_term=True, time=timenow) or ""),
+				prompts.USER_INFO_PROMPT.format(desc=config['user']['description']),
+				(partner.get_knowledge_bit_prompt(long_term=False, time=timenow) or "")
+			])
+		}
+
+		# STYLE
+		yield {
+			'role': "system",
+			'content': "\n\n".join([
+				prompts.CHAT_STYLE_PROMPT,
+				(prompts.GROUPCHAT_STYLE_PROMPT if len(self.ai_participants()) > 1 else "")
+			])
+		}
+
+		yield from self.get_special_openai_messages(messages, partner)
+
+
+		# MESSAGES
+		# chat before joining is not visible
+		#index = next((i for i, msg in enumerate(messages) if msg.message_type == MessageType.MetaJoin and msg.author == partner), None)
+		#if index is not None:
+		#	messages = messages[index:]
+		#	yield {
+		#	    'role': "system",
+		#	    'content': "[Previous chat history not visible]"
+		#	}
+
+		lasttimestamp = math.inf
+		lastchat: Chat = self
+		# use self as first last chat so the context switch is announced after giving meta info about this chat
+		for msg in messages:
+			if (msg.timestamp - lasttimestamp) > (config['ai_prompting_config']['message_gap_info_min_hours']*3600):
+				yield {
+					'role': "system",
+					'content': "{hours} hours pass... It's now {now}".format(hours=(timenow - lasttimestamp)//3600,now=describe_time(msg.timestamp))
+				}
+
+			if ALL_MESSAGES_IN_CONTEXT and lastchat and lastchat != msg.chat:
+				yield {
+					'role': "system",
+					'content': f"--- CONTEXT SWITCH: {('Group Chat ' + msg.chat.name) if isinstance(msg.chat, GroupChat) else 'Private Chat'} ---"
+				}
+
+			lasttimestamp = msg.timestamp
+			lastchat = msg.chat
+
+			yield {
+				'role':"user" if (msg.get_author() != partner) else "assistant",
+				'content': msg.display_for_model(vision=images),
+				'name': msg.get_author().sanitized_handle()
+			}
+
+		if (timenow - lasttimestamp) > (config['ai_prompting_config']['message_gap_info_min_hours']*3600):
+			yield {
+				'role': "system",
+				'content': "{hours} hours pass... It's now {now}".format(hours=(timenow - lasttimestamp)//3600,now=describe_time(timenow))
+			}
+		elif (len(messages) > 0) and (messages[-1].author == partner):
+			yield {
+				'role': "system",
+				'content': "[Continue]"
+			}
+
+		if ALL_MESSAGES_IN_CONTEXT and lastchat and lastchat != self:
+			yield {
+				'role': "system",
+				'content': f"--- CONTEXT SWITCH: {('Group Chat ' + self.name) if isinstance(self, GroupChat) else 'Private Chat'}---"
+			}
+
+		# REMINDERS
+		yield {
+			'role': "system",
+			'content': "\n\n".join([
+				prompts.GROUPCHAT_STYLE_REMINDER.format(assistant=partner) if (len(self.ai_participants()) > 1) else "",
+				prompts.CHAT_STYLE_REMINDER
+			])
+		}
+
 	def send_message(self,content=None,msgtype=None):
 		return self.add_message(Protagonist,content=content,msgtype=msgtype)
 
@@ -565,14 +657,14 @@ class Chat(Base):
 		vision_capable = AI['ChatResponse'].is_vision_capable()
 		use_vision = vision_capable and any(m.message_type == MessageType.Image for m in self.get_messages()[-MAX_MESSAGES_VISION:])
 
-		messages = self.get_openai_msg_list(from_perspective=responder,upto=replace,images=use_vision)
+		messages = list(self.get_openai_messages(partner=responder, upto=replace, images=use_vision))
 		if use_vision:
 			messages = messages[-MAX_MESSAGES_IN_CONTEXT_WITH_VISION:]
 
 		try:
 			result = AI['ChatResponse'].respond_chat(chat=self, messagelist=messages, allow_functioncall=(not replace))
 		except errors.ContentPolicyError:
-			messages = self.get_openai_msg_list(from_perspective=responder,upto=replace,images=False)
+			messages = list(self.get_openai_messages(partner=responder, upto=replace, images=False))
 			result = AI['ChatResponse'].respond_chat(chat=self, messagelist=messages, allow_functioncall=(not replace))
 
 		self.total_paid += result['cost']
@@ -626,96 +718,18 @@ class DirectChat(Chat):
 			'pinned': self.partner.pinned or False
 		}
 
-	def get_openai_messages(self,upto=None,images=False):
-		if ALL_MESSAGES_IN_CONTEXT:
-			messages = self.partner.get_all_accessible_messages(stop_before=upto)[-MAX_MESSAGES_IN_CONTEXT:]
-		else:
-			messages = self.get_messages(stop_before=upto)[-MAX_MESSAGES_IN_CONTEXT:]
+	def ai_participants(self):
+		return [self.partner]
 
-		timenow = upto.timestamp if upto else now()
+	def get_openai_messages(self, partner=None, upto=None, images=False):
+		return super().get_openai_messages(partner=self.partner, upto=upto, images=images)
 
-		# CHARACTER
-		yield {
-			'role':"system",
-			'content': "\n\n".join([
-				self.partner.get_prompt(),
-				self.partner.get_knowledge_bit_prompt(long_term=True,time=timenow) or "",
-				prompts.USER_INFO_PROMPT.format(desc=config['user']['description']),
-				(self.partner.get_knowledge_bit_prompt(long_term=False,time=timenow) or "")
-			])
-		}
-
-		# STYLE
-		yield {
-			'role':"system",
-			'content': "\n\n".join([
-				prompts.CHAT_STYLE_PROMPT
-			])
-		}
-
-		# CHAT
-		if len(messages) < 50 and self.partner.introduction_context:
+	def get_special_openai_messages(self, messages, partner):
+		if len(messages) < 50 and partner.introduction_context:
 			yield {
 				'role': "system",
-				'content': "Context for the new chat: " + self.partner.introduction_context
+				'content': "Context for the new chat: " + partner.introduction_context
 			}
-
-		# MESSAGES
-		lasttimestamp = math.inf
-		lastchat: Chat = self
-		# use self as first last chat so the context switch is announced after giving meta info about this chat
-		for msg in messages:
-			if (msg.timestamp - lasttimestamp) > (config['ai_prompting_config']['message_gap_info_min_hours']*3600):
-				yield {
-					'role':"system",
-					'content':"{hours} hours pass... {now}".format(hours=(timenow - lasttimestamp)//3600,now=describe_time(msg.timestamp))
-				}
-
-			if ALL_MESSAGES_IN_CONTEXT and lastchat and lastchat != msg.chat:
-				yield {
-					'role': "system",
-					'content': f"--- CONTEXT SWITCH: {('Group Chat ' + msg.chat.name) if isinstance(msg.chat, GroupChat) else 'Private Chat'} ---"
-				}
-
-			lasttimestamp = msg.timestamp
-			lastchat = msg.chat
-
-			yield {
-				'role': "user" if (msg.get_author() != self.partner) else "assistant",
-				'content': msg.display_for_model(vision=images),
-				'name': msg.get_author().sanitized_handle()
-			}
-
-		if (timenow - lasttimestamp) > (config['ai_prompting_config']['message_gap_info_min_hours']*3600):
-			yield {
-				'role':"system",
-				'content':"{hours} hours pass... {now}".format(hours=(timenow - lasttimestamp)//3600,now=describe_time(timenow))
-			}
-		elif (len(messages)>0) and (not messages[-1].is_from_user()):
-			yield {
-				'role':"system",
-				'content': "[Continue]"
-			}
-
-		if ALL_MESSAGES_IN_CONTEXT and lastchat and lastchat != self:
-			yield {
-				'role': "system",
-				'content': f"--- CONTEXT SWITCH: Private Chat ---"
-			}
-
-		# REMINDERS
-		yield {
-			'role': "system",
-			'content': "\n\n".join([
-				prompts.CHAT_STYLE_REMINDER
-			])
-		}
-
-	def get_openai_msg_list(self,upto=None,from_perspective=None,images=False):
-		result = list(self.get_openai_messages(upto=upto,images=images))
-		#from pprint import pprint
-		#pprint(result)
-		return result
 
 	def clean_content(self,content,responder):
 		return content
@@ -744,6 +758,9 @@ class GroupChat(Chat):
 		)
 
 		return f"Group Chat Name: {self.name}\nGroup Chat Members: {memberlist}"
+
+	def ai_participants(self):
+		return self.members
 
 	@ai_accessible_function
 	def rename_chat(self,author,timestamp,
@@ -782,108 +799,14 @@ class GroupChat(Chat):
 			'pinned': self.pinned or False
 		}
 
-	def get_openai_messages(self, partner, upto=None, images=False):
-		if ALL_MESSAGES_IN_CONTEXT:
-			messages = partner.get_all_accessible_messages(stop_before=upto)[-MAX_MESSAGES_IN_CONTEXT:]
-		else:
-			messages = self.get_messages(stop_before=upto, visible_to=partner)[-MAX_MESSAGES_IN_CONTEXT:]
-
-		timenow = upto.timestamp if upto else now()
-
-		# CHARACTER
-		yield {
-			'role':"system",
-			'content': "\n\n".join([
-				partner.get_prompt(),
-				(partner.get_knowledge_bit_prompt(long_term=True,time=timenow) or ""),
-				prompts.USER_INFO_PROMPT.format(desc=config['user']['description']),
-				(partner.get_knowledge_bit_prompt(long_term=False,time=timenow) or "")
-			])
-		}
-
-		# STYLE
-		yield {
-			'role':"system",
-			'content': "\n\n".join([
-				prompts.CHAT_STYLE_PROMPT,
-				(prompts.GROUPCHAT_STYLE_PROMPT if len(self.members) > 1 else "")
-			])
-		}
-
+	def get_special_openai_messages(self, messages, partner):
 		# GROUP INFO
 		yield {
-			'role':"system",
+			'role': "system",
 			'content': "\n\n".join([
 				self.get_group_desc_prompt(partner)
 			])
 		}
-
-		# MESSAGES
-		# chat before joining is not visible
-		#index = next((i for i, msg in enumerate(messages) if msg.message_type == MessageType.MetaJoin and msg.author == partner), None)
-		#if index is not None:
-		#	messages = messages[index:]
-		#	yield {
-		#	    'role': "system",
-		#	    'content': "[Previous chat history not visible]"
-		#	}
-
-		lasttimestamp = math.inf
-		lastchat: Chat = self
-		for msg in messages:
-			if (msg.timestamp - lasttimestamp) > (config['ai_prompting_config']['message_gap_info_min_hours']*3600):
-				yield {
-					'role':"system",
-					'content':"{hours} hours pass... It's now {now}".format(hours=(timenow - lasttimestamp)//3600,now=describe_time(msg.timestamp))
-				}
-
-			if ALL_MESSAGES_IN_CONTEXT and lastchat and lastchat != msg.chat:
-				yield {
-					'role': "system",
-					'content': f"--- CONTEXT SWITCH: {('Group Chat ' + msg.chat.name) if isinstance(msg.chat, GroupChat) else 'Private Chat'} ---"
-				}
-
-			lasttimestamp = msg.timestamp
-			lastchat = msg.chat
-
-			yield {
-				'role':"user" if (msg.get_author() != partner) else "assistant",
-				'content': msg.display_for_model(vision=images),
-				'name': msg.get_author().sanitized_handle()
-			}
-
-		if (timenow - lasttimestamp) > (config['ai_prompting_config']['message_gap_info_min_hours']*3600):
-			yield {
-				'role':"system",
-				'content':"{hours} hours pass... It's now {now}".format(hours=(timenow - lasttimestamp)//3600,now=describe_time(timenow))
-			}
-		elif (len(messages)>0) and (messages[-1].author == partner):
-			yield {
-				'role':"system",
-				'content': "[Continue]"
-			}
-
-		if ALL_MESSAGES_IN_CONTEXT and lastchat and lastchat != self:
-			yield {
-				'role': "system",
-				'content': f"--- CONTEXT SWITCH: Group Chat {self.name}---"
-			}
-
-		# REMINDERS
-		yield {
-			'role': "system",
-			'content': "\n\n".join([
-				prompts.GROUPCHAT_STYLE_REMINDER.format(assistant=partner) if (len(self.members) > 1) else "",
-				prompts.CHAT_STYLE_REMINDER
-			])
-		}
-
-	def get_openai_msg_list(self,from_perspective,upto=None,images=False):
-		result = list(self.get_openai_messages(partner=from_perspective,upto=upto,images=images))
-		#from pprint import pprint
-		#pprint(result)
-
-		return result
 
 	def pick_next_responder(self):
 
