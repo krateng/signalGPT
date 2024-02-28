@@ -5,6 +5,8 @@ import os
 import random
 import time
 from datetime import datetime, timezone, timedelta
+from typing import Iterable, List
+
 import emoji
 import enum
 import math
@@ -140,19 +142,20 @@ class JsonDict(TypeDecorator):
 			value = json.loads(value)
 		return value
 
+
 # ASSOCIATIONS
-chat_to_member = Table('chat_members',Base.metadata,
-	Column("chat_id",Integer,ForeignKey('chats.uid')),
-	Column("person_handle",String,ForeignKey('people.handle'))
+chat_to_member = Table('chat_members', Base.metadata,
+	Column("chat_id", Integer, ForeignKey('chats.uid')),
+	Column("person_handle", String, ForeignKey('people.handle'))
 )
 
 
 class Partner(Base):
 	__tablename__ = 'people'
 	uid = Column(Integer)
-	handle = Column(String,primary_key=True)
+	handle = Column(String, primary_key=True)
 	name = Column(String)
-	male = Column(Boolean,default=False)
+	male = Column(Boolean, default=False)
 	bio = Column(String)
 	image = Column(String)
 	instructions = Column(String)
@@ -167,7 +170,7 @@ class Partner(Base):
 	chats = relationship("GroupChat",secondary=chat_to_member,back_populates="members")
 	direct_chat = relationship('DirectChat',back_populates='partner',uselist=False)
 
-	def __init__(self,**data):
+	def __init__(self, **data):
 
 		if "from_desc" in data:
 			results = create_character_info(data.pop('from_desc'))
@@ -177,14 +180,12 @@ class Partner(Base):
 			data['instructions'] = results['prompt']
 			data['male'] = results['male']
 
-			data['image'] = create_character_image(results['img_prompt_keywords'],male=data['male'])
+			data['image'] = create_character_image(results['img_prompt_keywords'], male=data['male'])
 
 		super().__init__(**data)
 
 		self.color = self.color or generate_color()
 		#self.uid = self.uid or generate_uid()
-
-
 
 	def start_direct_chat(self):
 		if self.direct_chat and not self.direct_chat.archived:
@@ -206,20 +207,14 @@ class Partner(Base):
 	def serialize(self):
 		self.start_direct_chat()
 		return {
-			'name':self.name,
-			'handle':self.handle,
-			'bio':self.bio,
-			#'uid':self.uid,
-			'image':self.image,
-			'instructions':self.instructions,
-			'friend':self.friend,
-			'direct_chat': {'ref':'chats','key':self.direct_chat.uid} if self.direct_chat else None
-			#'direct_chat':self.direct_chat.serialize() if self.direct_chat else None
+			'name': self.name,
+			'handle': self.handle,
+			'bio': self.bio,
+			'image': self.image,
+			'instructions': self.instructions,
+			'friend': self.friend,
+			'direct_chat': {'ref': 'chats', 'key': self.direct_chat.uid} if self.direct_chat else None
 		}
-	def add_contact(self):
-		self.permanent = True
-		with open(os.path.join("partners",self.handle + ".json"),"w") as fd:
-			json.dump(self.serialize(),fd,indent=4)
 
 	def get_prompt(self):
 		return prompts.CHARACTER_INSTRUCTION_PROMPT.format(assistant=self)
@@ -253,6 +248,7 @@ class Partner(Base):
 	def sanitized_handle(self):
 		return ''.join(char for char in self.handle if char in 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-')
 
+
 class Protagonist:
 	name = config['user']['name']
 	color = "blue"
@@ -279,20 +275,20 @@ class MessageType(enum.Enum):
 class Message(Base):
 	__tablename__ = 'messages'
 
-	uid = Column(Integer,primary_key=True)
-	chat_id = Column(Integer,ForeignKey('chats.uid'))
-	chat = relationship('Chat',backref='messages')
-	author_handle = Column(String,ForeignKey('people.handle'))
-	author = relationship('Partner',backref='messages',foreign_keys=[author_handle])
+	uid = Column(Integer, primary_key=True)
+	chat_id = Column(Integer, ForeignKey('chats.uid'))
+	chat = relationship('Chat', backref='messages')
+	author_handle = Column(String, ForeignKey('people.handle'))
+	author = relationship('Partner', backref='messages', foreign_keys=[author_handle])
 	timestamp = Column(Integer)
-	message_type = Column(Enum(MessageType),default=MessageType.Text)
-	content = Column(String,default="")
-	content_secondary = Column(String) # used for media description
+	message_type = Column(Enum(MessageType), default=MessageType.Text)
+	content = Column(String, default="")
+	content_secondary = Column(String)  # used for media description
 	media_attached = Column(String)
-	linked_contact_handle = Column(String,ForeignKey('people.handle'))
-	linked_contact = relationship('Partner',foreign_keys=[linked_contact_handle])
+	linked_contact_handle = Column(String, ForeignKey('people.handle'))
+	linked_contact = relationship('Partner', foreign_keys=[linked_contact_handle])
 
-	def __init__(self,**data):
+	def __init__(self, **data):
 		if 'content' in data:
 			data['content'] = data['content'].strip()
 
@@ -307,28 +303,24 @@ class Message(Base):
 	def print(self):
 		self.get_author().print_message(self.content)
 
-
 	def serialize(self):
 		return {
 			'uid': self.uid,
-			#'author':self.get_author().handle,
-			'author': {'ref':'contacts','key':self.get_author().handle} if not self.is_from_user() else None,
-			'own':(self.get_author() is Protagonist),
-			'chat': {'ref':'chats','key':self.chat.uid},
-			'content':self.content or "",
-			'linked_entity': {'ref': 'contacts','key':self.linked_contact.handle } if self.message_type == MessageType.Contact else None,
-			'message_type':self.message_type.name if self.message_type else None,
-			#'media_attached':self.media_attached,
-			#'media_type':get_media_type(self.media_attached),
-			'timestamp':self.timestamp,
-			'display_simplified': self.content and (len(self.content)<6) and ("" == emoji.replace_emoji(self.content,replace=''))
+			'author': {'ref': 'contacts', 'key': self.get_author().handle} if not self.is_from_user() else None,
+			'own': (self.get_author() is Protagonist),
+			'chat': {'ref': 'chats', 'key': self.chat.uid},
+			'content': self.content or "",
+			'linked_entity': {'ref': 'contacts', 'key': self.linked_contact.handle } if self.message_type == MessageType.Contact else None,
+			'message_type': self.message_type.name if self.message_type else None,
+			'timestamp': self.timestamp,
+			'display_simplified': self.content and (len(self.content)<6) and ("" == emoji.replace_emoji(self.content, replace=''))
 		}
 
-	def display_for_model(self,vision=False,add_author=None):
+	def display_for_model(self, vision=False, add_author: Partner | Protagonist = None):
 
 		prefix = f"{add_author.name}: " if add_author else ""
 
-		if self.message_type in [None,MessageType.Text]:
+		if self.message_type in [None, MessageType.Text]:
 			return prefix + self.content
 		elif (self.message_type == MessageType.Image) and vision:
 			if self.content.startswith("data:"):
@@ -337,8 +329,8 @@ class Message(Base):
 				encodedimg = image_encode_b64('.' + self.content)
 			msg = [
 				{
-					'type':'image_url',
-					'image_url':{
+					'type': 'image_url',
+					'image_url': {
 						'url': encodedimg
 					}
 				}
@@ -372,7 +364,7 @@ class ChatSummary(Base):
 	__tablename__ = "chatsummaries"
 
 	uid = Column(Integer, primary_key=True)
-	chat_uid = Column(String,ForeignKey('chats.uid'))
+	chat_uid = Column(String, ForeignKey('chats.uid'))
 	chat = relationship('Chat', backref='summaries')
 
 
@@ -397,9 +389,8 @@ class Chat(Base):
 		funcs = {f.__name__:{'schema':f._schema,'lazyschema':f._lazyschema,'func':f,'lazy':getattr(f,'_lazy',False),'nonterminating':getattr(f,'_nonterminating',False)} for f in funcs}
 		return funcs
 
-
 	@ai_accessible_function
-	def send_image(self,author,timestamp,
+	def send_image(self, author: Partner | Protagonist, timestamp: int,
 		prompt: (('array','string'),True,"Keywords that objectively describe what the image shows to someone who has no context or knowledge of you or this chat.\
 			If the picture includes yourself or other chat participants, make sure the keywords describe your or their appearance to the best of your knowledge. \
 			Don't just add your name, add things like your ethnicity, hair color etc.\
@@ -420,7 +411,7 @@ class Chat(Base):
 		yield m
 
 	@ai_accessible_function
-	def send_contact(self,author,timestamp,
+	def send_contact(self, author: Partner | Protagonist, timestamp: int,
 		name: (('string',),True,"The contact's informal name - prename or nickname"),
 		male: (('boolean',),True,"True if the contact is male, false if they are female."),
 		short_description: (('string',),True,"Objectively describe the contact. Include name and sex again, but also character, ethnicity, looks, etc. without any relation to the current chat context.\
@@ -432,24 +423,23 @@ class Chat(Base):
 
 		session = ScopedSession()
 
-		char = session.query(Partner).where(Partner.name==name).first()
+		char = session.query(Partner).where(Partner.name == name).first()
 		if not char:
-			char = Partner(from_desc=short_description,introduction_context=context_introduction)
+			char = Partner(from_desc=short_description, introduction_context=context_introduction)
 			session.add(char)
 			session.commit()
 		handle = char.handle
 
-		if add_to_groupchat and isinstance(self,GroupChat):
+		if add_to_groupchat and isinstance(self, GroupChat):
 			m = self.add_person(char)
 			yield m
 		else:
-			m = self.add_message(author=author,message_type=MessageType.Contact,linked_contact=char)
+			m = self.add_message(author=author, message_type=MessageType.Contact, linked_contact=char)
 			yield m
-
 
 	@ai_accessible_function
 	@lazy
-	def send_meme(self,author,timestamp,resolve=None,args={}):
+	def send_meme(self, author: Partner | Protagonist,timestamp: int, resolve=None, args={}):
 		"Send a meme"
 
 		customfuncs = memes.get_functions()
@@ -498,15 +488,15 @@ class Chat(Base):
 	def serialize(self):
 		return {
 			**self.serialize_short(),
-			'messages':[msg.serialize() for msg in self.get_messages()],
-			'cost':self.readable_cost()
+			'messages': [msg.serialize() for msg in self.get_messages()],
+			'cost': self.readable_cost()
 		}
 
-	def add_message(self,author=None,timestamp=None,**keys):
-		if msgt := keys.pop('msgtype',None):
+	def add_message(self, author: Partner | Protagonist = None, timestamp: int = None, **keys):
+		if msgt := keys.pop('msgtype', None):
 			keys['message_type'] = {
-				'image':MessageType.Image,
-				'video':MessageType.Video
+				'image': MessageType.Image,
+				'video': MessageType.Video
 			}[msgt]
 
 		session = ScopedSession()
@@ -521,19 +511,7 @@ class Chat(Base):
 		session.commit()
 		return m
 
-	def get_messages_upto(self,upto):
-		if upto:
-			relevant_messages = []
-			for msg in self.messages:
-				if msg is upto:
-					break
-				else:
-					relevant_messages.append(msg)
-			return relevant_messages
-		else:
-			return self.messages
-
-	def get_messages(self, stop_before=None, visible_to: Partner = None):
+	def get_messages(self, stop_before: Message | int = None, visible_to: Partner = None):
 		msgs = sorted(self.messages, key=lambda x: x.timestamp)
 
 		if visible_to:
@@ -565,7 +543,7 @@ class Chat(Base):
 
 		# CHARACTER
 		yield {
-			'role':"system",
+			'role': "system",
 			'content': "\n\n".join([
 				partner.get_prompt(),
 				(partner.get_knowledge_bit_prompt(long_term=True, time=timenow) or ""),
@@ -647,10 +625,10 @@ class Chat(Base):
 			])
 		}
 
-	def send_message(self,content=None,msgtype=None):
-		return self.add_message(Protagonist,content=content,msgtype=msgtype)
+	def send_message(self, content: str = None, msgtype: MessageType = None):
+		return self.add_message(Protagonist, content=content, msgtype=msgtype)
 
-	def get_response(self,replace=None,responder=None):
+	def get_response(self, replace: Message | int = None, responder: Partner = None):
 		if not responder:
 			responder = replace.author if replace else self.pick_next_responder()
 
@@ -685,53 +663,48 @@ class Chat(Base):
 
 		# FUNCTIONS
 		if funccall := result['function_call']:
-			yield from funccall['function'](self=self,author=responder,timestamp=replace.timestamp if replace else now(),**funccall['arguments'])
+			yield from funccall['function'](self=self, author=responder, timestamp=replace.timestamp if replace else now(), **funccall['arguments'])
 
-	def get_summary(self,partner,external=False,timestamp=None):
+	def get_summary(self, partner: Partner, external=False, timestamp=None):
 
 		messages = self.get_messages(stop_before=timestamp)
-		result = summarize_chat(messages,perspective=partner,external=external)
+		result = summarize_chat(messages, perspective=partner, external=external)
 
 		return result
 
 
 class DirectChat(Chat):
 	__tablename__ = 'directchats'
-	uid = Column(Integer,ForeignKey('chats.uid'),primary_key=True)
+	uid = Column(Integer, ForeignKey('chats.uid'), primary_key=True)
 
-	partner_handle = Column(String,ForeignKey('people.handle'))
-	partner = relationship('Partner',back_populates='direct_chat',uselist=False)
+	partner_handle = Column(String, ForeignKey('people.handle'))
+	partner = relationship('Partner', back_populates='direct_chat', uselist=False)
 
 	__mapper_args__ = {'polymorphic_identity': 'direct'}
 
 	def serialize_short(self):
 		return {
-			'uid':self.uid,
-			#'partner':self.partner.serialize(),
-			'partner': {'ref':'contacts','key':self.partner.handle},
-			#'partner':self.partner_handle,
-			#'name':self.partner.name,
-			'groupchat':False,
-			#'desc':self.partner.bio,
-			#'image':self.partner.image,
-			'latest_message':self.get_messages()[-1].serialize() if self.messages else None,
+			'uid': self.uid,
+			'partner': {'ref': 'contacts', 'key': self.partner.handle},
+			'groupchat': False,
+			'latest_message': self.get_messages()[-1].serialize() if self.messages else None,
 			'pinned': self.partner.pinned or False
 		}
 
 	def ai_participants(self):
 		return [self.partner]
 
-	def get_openai_messages(self, partner=None, upto=None, images=False):
+	def get_openai_messages(self, partner: Partner = None, upto=None, images=False):
 		return super().get_openai_messages(partner=self.partner, upto=upto, images=images)
 
-	def get_special_openai_messages(self, messages, partner):
+	def get_special_openai_messages(self, messages: List[Message], partner: Partner):
 		if len(messages) < 50 and partner.introduction_context:
 			yield {
 				'role': "system",
 				'content': "Context for the new chat: " + partner.introduction_context
 			}
 
-	def clean_content(self,content,responder):
+	def clean_content(self, content: str, responder: Partner):
 		return content
 
 	def pick_next_responder(self):
@@ -747,7 +720,7 @@ class GroupChat(Chat):
 	image = Column(String)
 	pinned = Column(Boolean, default=False)
 
-	members = relationship("Partner",secondary=chat_to_member,back_populates="chats")
+	members = relationship("Partner", secondary=chat_to_member, back_populates="chats")
 
 	__mapper_args__ = {'polymorphic_identity': 'group'}
 
@@ -773,7 +746,7 @@ class GroupChat(Chat):
 		yield m
 
 	@ai_accessible_function
-	def change_group_picture(self,author,timestamp,
+	def change_group_picture(self, author: Partner | Protagonist, timestamp: int,
 		prompt: (('array','string'),True,"Keywords that describe the image"),
 		prompt_fulltext: (('string',),True,"Full text description of the image"),
 		negative_prompt: (('array','string'),False,"Keywords for undesirable traits or content of the picture.") = []
@@ -787,19 +760,17 @@ class GroupChat(Chat):
 
 	def serialize_short(self):
 		return {
-			'uid':self.uid,
-			'name':self.name,
-			'groupchat':True,
-			'desc':self.desc,
-			'image':self.image,
-			'partners': [{'ref':'contacts','key':p.handle} for p in self.members],
-			#'partners':[p.serialize() for p in self.partners],
-			#'partners':{p.handle:p.name for p in self.members},
-			'latest_message':self.get_messages()[-1].serialize() if self.messages else None,
+			'uid': self.uid,
+			'name': self.name,
+			'groupchat': True,
+			'desc': self.desc,
+			'image': self.image,
+			'partners': [{'ref': 'contacts', 'key': p.handle} for p in self.members],
+			'latest_message': self.get_messages()[-1].serialize() if self.messages else None,
 			'pinned': self.pinned or False
 		}
 
-	def get_special_openai_messages(self, messages, partner):
+	def get_special_openai_messages(self, messages: List[Message], partner: Partner):
 		# GROUP INFO
 		yield {
 			'role': "system",
@@ -810,11 +781,11 @@ class GroupChat(Chat):
 
 	def pick_next_responder(self):
 
-		responder = guess_next_responder(self.get_messages(),self.members,user=Protagonist)
+		responder = guess_next_responder(self.get_messages(), self.members, user=Protagonist)
 
 		if not responder:
 			# Fallback
-			chances = {p:100 for p in self.members}
+			chances = {p: 100 for p in self.members}
 			mentioned = set()
 			for msg in self.messages[-7:]:
 				for p in self.members:
@@ -826,31 +797,31 @@ class GroupChat(Chat):
 						mentioned.discard(p)
 
 
-			for index,msg in enumerate(reversed(self.messages[-7:])):
+			for index, msg in enumerate(reversed(self.messages[-7:])):
 				# last responder never responds, going further back the penalty is reduced
 				if msg.author:
 					chances[msg.author] *= (index / 10)
 			for p in mentioned:
 				chances[p] += (200 * len(chances))
 
-			responder = random.choices(list(chances.keys()),weights=chances.values(),k=1)[0]
+			responder = random.choices(list(chances.keys()), weights=chances.values(), k=1)[0]
 
 		return responder
 
-	def clean_content(self,content,responder):
+	def clean_content(self, content: str, responder: Partner):
 		unwanted_prefix = f"{responder.name}: "
 		if content.startswith(unwanted_prefix):
 			content = content[len(unwanted_prefix):]
 		return content
 
-	def add_person(self,person):
+	def add_person(self, person: Partner | Protagonist):
 		if person not in self.members:
 			self.members.append(person)
 			m = Message(
-				message_type = MessageType.MetaJoin,
-				author = person,
-				chat = self,
-				timestamp = now()
+				message_type=MessageType.MetaJoin,
+				author=person,
+				chat=self,
+				timestamp=now()
 			)
 			self.messages.append(m)
 			return m
