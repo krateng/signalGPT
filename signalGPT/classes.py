@@ -212,11 +212,11 @@ class Partner(Base):
 		self.color = self.color or generate_color()
 		#self.uid = self.uid or generate_uid()
 
-	def start_direct_chat(self):
+	def start_direct_chat(self, session=None):
 		if self.direct_chat and not self.direct_chat.archived:
 			return self.direct_chat
 
-		sess = ScopedSession()
+		sess = session or ScopedSession()
 		direct_chat = DirectChat()
 		direct_chat.partner = self
 		sess.add(direct_chat)
@@ -923,7 +923,7 @@ def maintenance():
 
 			# chat for friends
 			if partner.friend:
-				partner.start_direct_chat()
+				partner.start_direct_chat(session=session)
 
 		session.commit()
 
