@@ -600,6 +600,12 @@ class Chat(Base):
 			])
 		}
 
+		if len(messages) < 30 and partner.introduction_context:
+			yield {
+				'role': "system",
+				'content': "Context for the new chat: " + partner.introduction_context
+			}
+
 		yield from self.get_special_openai_messages(messages, partner)
 
 
@@ -737,11 +743,7 @@ class DirectChat(Chat):
 		return super().get_openai_messages(partner=self.partner, upto=upto, images=images)
 
 	def get_special_openai_messages(self, messages: List[Message], partner: Partner):
-		if len(messages) < 50 and partner.introduction_context:
-			yield {
-				'role': "system",
-				'content': "Context for the new chat: " + partner.introduction_context
-			}
+		return
 
 	def clean_content(self, content: str, responder: Partner):
 		return content
