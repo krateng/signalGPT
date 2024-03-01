@@ -743,7 +743,7 @@ class DirectChat(Chat):
 		return super().get_openai_messages(partner=self.partner, upto=upto, images=images)
 
 	def get_special_openai_messages(self, messages: List[Message], partner: Partner):
-		return
+		yield from []
 
 	def clean_content(self, content: str, responder: Partner):
 		return content
