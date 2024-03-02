@@ -225,6 +225,9 @@ class Partner(Base):
 
 	def get_all_accessible_messages(self, stop_before=None):
 		chats = [chat for chat in self.chats + [self.direct_chat] if chat]
+		if isinstance(stop_before, Message):
+			# need to convert here because the actual message might not be in the messages (different chats)
+			stop_before = stop_before.timestamp
 		msgs = [msg for chat in chats for msg in chat.get_messages(stop_before=stop_before, visible_to=self)]
 		msgs = sorted(msgs, key=lambda x: x.timestamp)
 		return msgs
