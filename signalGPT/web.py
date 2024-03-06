@@ -25,8 +25,8 @@ def index():
 @get("/<path>")
 @auth_basic(is_auth)
 def static(path):
-	with resources.files('signalGPT') / 'frontend' as staticfolder:
-		return static_file(path, root=staticfolder)
+	staticfolder = resources.files('signalGPT') / 'frontend'
+	return static_file(path, root=staticfolder)
 
 
 @get("/media/<path:path>")
