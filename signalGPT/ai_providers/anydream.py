@@ -1,4 +1,4 @@
-from . import AIProvider, Capability, Format, singleton
+from . import AIProvider, Format, singleton, ImageGenerateProvider
 from ..helper import save_debug_file
 
 import browser_cookie3
@@ -8,10 +8,7 @@ import time
 
 
 @singleton
-class Anydream(AIProvider):
-	capabilities = [
-		Capability.ImageGeneration
-	]
+class Anydream(ImageGenerateProvider):
 	identifier = 'anydream'
 
 	def create_image(self, keyword_prompt: list, keyword_prompt_negative: list, fulltext_prompt: str, imageformat: Format):

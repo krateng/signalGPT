@@ -4,8 +4,9 @@ import enum
 import json
 import math
 import types
+from pprint import pprint
 
-from typing import Dict, Any
+from typing import Dict
 
 import anthropic
 import openai
@@ -21,61 +22,62 @@ MAX_MESSAGES_IN_CONTEXT_WITH_VISION = 10
 ALL_MESSAGES_IN_CONTEXT = True
 
 
-class Capability(enum.Enum):
-	ImageGeneration = enum.auto()
-	ChatResponse = enum.auto()
-	ResponderPick = enum.auto()
-	CharacterCreation = enum.auto()
-
-
-
 class Format(enum.Enum):
 	Square = enum.auto()
 	Landscape = enum.auto()
 	Portrait = enum.auto()
 
 
-def singleton(cls):
-	return cls()
+def singleton(c):
+	return c()
 
 
-class AIProvider:
-	options = {
-		cap: []
-		for name,cap in Capability._member_map_.items()
-	}
+class AIProvider(abc.ABC):
+	providers = {}
 
-
-	def __init_subclass__(cls,**kwargs):
-		pass
-
+	identifier: str
 
 	def __init__(self):
-		self.config = config.get('service_config',{}).get(self.identifier,{})
-		basecls = self.__class__.__base__
-		for cap in self.capabilities:
-			basecls.options[cap].append(self)
-			#basecls.options.setdefault(cap,{})[self.identifier] = self
+		self.config = config.get('service_config', {}).get(self.identifier, {})
 
-
+		for base in self.__class__.__bases__:
+			if hasattr(base, 'providers'):
+				base.providers[self.identifier] = self
 
 	@classmethod
-	def __getitem__(cls,attr):
-		return cls.options[attr]
+	def __getitem__(cls, attr):
+		return cls.providers[attr]
 
-	def create_image(self, keyword_prompt: list, keyword_prompt_negative: list, fulltext_prompt: str, imageformat: Format):
-		raise NotImplemented()
 
-	def respond_chat(self, chat, messagelist, allow_functioncall=True):
+class ChatCompleteProvider(AIProvider, abc.ABC):
+	providers = {}
+
+	def respond_chat(self, chat, messagelist, responder, allow_functioncall=True):
 		raise NotImplemented()
 
 	def get_messages(self, chat, partner, upto=None, images=False):
 		raise NotImplemented()
 
-	# TODO make subclasses for capabilities
+	def is_vision_capable(self):
+		return False
 
 
-class OpenAILike(AIProvider):
+class ImageGenerateProvider(AIProvider, abc.ABC):
+	providers = {}
+
+	def create_image(self, keyword_prompt: list, keyword_prompt_negative: list, fulltext_prompt: str, imageformat: Format):
+		raise NotImplemented()
+
+
+class CharacterCreateProvider(AIProvider, abc.ABC):
+	providers = {}
+
+
+class ResponderPickProvider(AIProvider, abc.ABC):
+	providers = {}
+
+
+class OpenAILike(ChatCompleteProvider, abc.ABC):
 
 	# define for subclasses
 	MODELS = []
@@ -104,7 +106,7 @@ class OpenAILike(AIProvider):
 
 	def get_global_system_prompt(self, chat, partner):
 
-		from ..classes import Chat, GroupChat
+		from ..classes import GroupChat
 
 		prompt = "\n\n".join([
 			partner.get_prompt(),
@@ -124,7 +126,6 @@ class OpenAILike(AIProvider):
 		return model.vision_capable
 
 	def get_messages(self, chat, partner, upto=None, images=False):
-
 
 		from ..classes import Chat, GroupChat
 
@@ -170,18 +171,9 @@ class OpenAILike(AIProvider):
 					])
 				}
 
+		# TODO extra message that chat has been going on and prev history is not visible?
 
 		# MESSAGES
-		# chat before joining is not visible
-		#index = next((i for i, msg in enumerate(messages) if msg.message_type == MessageType.MetaJoin and msg.author == partner), None)
-		#if index is not None:
-		#	messages = messages[index:]
-		#	yield {
-		#	    'role': "system",
-		#	    'content': "[Previous chat history not visible]"
-		#	}
-
-
 		lasttimestamp = math.inf
 		lastchat: Chat = chat
 		messagebuffer = []
@@ -233,7 +225,7 @@ class OpenAILike(AIProvider):
 			if (timenow - lasttimestamp) > (config['ai_prompting_config']['message_gap_info_min_hours']*3600):
 				yield {
 					'role': "system",
-					'content': "{hours} hours pass... It's now {now}".format(hours=(timenow - lasttimestamp)//3600,now=describe_time(timenow))
+					'content': "{hours} hours pass... It's now {now}".format(hours=(timenow - lasttimestamp)//3600, now=describe_time(timenow))
 				}
 			elif (len(messages) > 0) and (messages[-1].author == partner):
 				yield {
@@ -269,7 +261,7 @@ class OpenAILike(AIProvider):
 				logm = copy.deepcopy(m)
 				try:
 					logm['content'][0]['image_url']['url'] = logm['content'][0]['image_url']['url'][:30] + "...(shortened)"
-				except:
+				except Exception:
 					pass
 				messagelist_for_log.append(logm)
 
@@ -288,7 +280,7 @@ class OpenAILike(AIProvider):
 			extraargs['system'] = self.get_global_system_prompt(chat=chat, partner=responder)
 
 		if self.system_messages:
-			save_debug_file('messagerequest',{'messages': messagelist_for_log})
+			save_debug_file('messagerequest', {'messages': messagelist_for_log})
 		else:
 			save_debug_file('messagerequest', {'messages': messagelist_for_log, 'prompt': extraargs['system']})
 
@@ -298,6 +290,7 @@ class OpenAILike(AIProvider):
 		results = []
 		fullsig_sent = False
 		lazy_original_function = None
+		function_call = None
 		while True:
 			try:
 				completion = self.get_create_root().create(
@@ -315,7 +308,7 @@ class OpenAILike(AIProvider):
 
 			msg = self.get_message_from_completion(completion)
 			results.append(msg.model_dump())
-			save_debug_file('messagerequest', {'prompt': extraargs.get('system'), 'messages':messagelist, 'results':results})
+			save_debug_file('messagerequest', {'prompt': extraargs.get('system'), 'messages': messagelist, 'results': results})
 
 			cost = completion.usage
 			total_cost += model.cost_input * (cost.prompt_tokens if hasattr(cost, 'prompt_tokens') else cost.input_tokens)
@@ -372,7 +365,7 @@ class OpenAILike(AIProvider):
 				else:
 					tool_id = funccall.id
 
-					extramsgs = [msg.model_dump()] + [{'role':'tool','tool_call_id':tool_id,'content':"Success!"}] # TODO
+					extramsgs = [msg.model_dump()] + [{'role': 'tool', 'tool_call_id': tool_id, 'content': "Success!"}] # TODO
 					messagelist += extramsgs
 					messagelist_for_log += extramsgs
 
@@ -396,11 +389,16 @@ class OpenAILike(AIProvider):
 		}
 
 
-
-
 from . import anydream, open_ai, getimg, anthropicai
 
-AI: Dict[str, AIProvider] = {
-	name: [provider for provider in AIProvider.options[cap] if provider.identifier == config['use_service'][name]][0]
-	for name, cap in Capability._member_map_.items()
+AI: Dict[str, AIProvider] = {}
+
+abstractclasses = {
+	'ImageGeneration': ImageGenerateProvider,
+	'ChatResponse': ChatCompleteProvider,
+	'ResponderPick': ResponderPickProvider,
+	'CharacterCreation': CharacterCreateProvider
 }
+
+for capability, cls in abstractclasses.items():
+	AI[capability] = cls.providers[config['use_service'][capability]]

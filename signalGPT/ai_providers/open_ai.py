@@ -2,7 +2,8 @@ import copy
 import json
 from collections import namedtuple
 
-from . import AIProvider, Capability, singleton, OpenAILike
+from . import AIProvider, singleton, OpenAILike, ResponderPickProvider, CharacterCreateProvider, \
+	ImageGenerateProvider
 import openai
 
 from .. import errors
@@ -16,13 +17,7 @@ GPTModel = namedtuple('GPTModel', ['identifier', 'cost_input', 'cost_output', 'v
 
 
 @singleton
-class OpenAI(OpenAILike):
-	capabilities = [
-		Capability.ImageGeneration,
-		Capability.ChatResponse,
-		Capability.ResponderPick,
-		Capability.CharacterCreation
-	]
+class OpenAI(OpenAILike, ResponderPickProvider, CharacterCreateProvider, ImageGenerateProvider):
 	identifier = 'openai'
 	providerlib = openai
 	system_messages = True

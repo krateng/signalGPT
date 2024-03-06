@@ -2,7 +2,7 @@ import copy
 import json
 
 from signalGPT import errors
-from signalGPT.ai_providers import singleton, AIProvider, Capability, OpenAILike
+from signalGPT.ai_providers import singleton, AIProvider, OpenAILike
 import anthropic
 
 from signalGPT.ai_providers.open_ai import GPTModel
@@ -11,11 +11,6 @@ from signalGPT.helper import save_debug_file
 
 @singleton
 class Anthropic(OpenAILike):
-	capabilities = [
-		Capability.ChatResponse,
-		Capability.ResponderPick,
-		Capability.CharacterCreation
-	]
 	identifier = 'anthropic'
 	providerlib = anthropic
 	system_messages = False
