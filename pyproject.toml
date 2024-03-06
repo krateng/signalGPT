@@ -24,7 +24,7 @@ dependencies = [
 	"sqlalchemy>=1.4",
 	"PyYAML",
 	"openai>=1.0",
-	"anthropic>0.19",
+	"anthropic>=0.19",
 	"emoji",
 	"doreah",
 	"browser-cookie3"
