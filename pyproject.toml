@@ -1,9 +1,9 @@
 [project]
 name = "signalGPT"
-version = "0.1"
+version = "0.2"
 description = "Wrap your ChatGPT conversations in an IM app"
 #readme = "./README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.11"
 #license = { file="./LICENSE" }
 authors = [ { name="Johannes Krattenmacher", email="misc@dev.krateng.ch" } ]
 
@@ -24,6 +24,7 @@ dependencies = [
 	"sqlalchemy>=1.4",
 	"PyYAML",
 	"openai>=1.0",
+	"anthropic>0.19",
 	"emoji",
 	"doreah",
 	"browser-cookie3"
