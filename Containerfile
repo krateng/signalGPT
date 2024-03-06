@@ -27,4 +27,4 @@ RUN python3 -m venv /venv && \
 EXPOSE 8080
 WORKDIR /data
 
-ENTRYPOINT python3 -m signalGPT.web
+ENTRYPOINT /venv/bin/python -m signalGPT.web
