@@ -9,16 +9,18 @@ RUN \
 		py3-pip \
 		gcc \
 		musl-dev
-RUN \
-	python3 -m ensurepip && \
-	pip3 install -U --no-cache-dir \
-	    pip \
+RUN python3 -m venv /venv && \
+    . /venv/bin/activate && \
+    python3 -m ensurepip && \
+    pip3 install -U --no-cache-dir \
+        pip \
 	    wheel \
 	    lz4
 
 COPY . .
 
-RUN \
+RUN python3 -m venv /venv && \
+    . /venv/bin/activate && \
     pip3 install /usr/src/app
 
 
