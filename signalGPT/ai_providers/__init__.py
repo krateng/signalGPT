@@ -287,126 +287,115 @@ class OpenAILike(AIProvider):
 		if not self.system_messages:
 			extraargs['system'] = self.get_global_system_prompt(chat=chat, partner=responder)
 
-		save_debug_file('messagerequest',{'messages': messagelist_for_log})
+		if self.system_messages:
+			save_debug_file('messagerequest',{'messages': messagelist_for_log})
+		else:
+			save_debug_file('messagerequest', {'messages': messagelist_for_log, 'prompt': extraargs['system']})
 
-		# INITIAL COMPLETION
-		try:
-			completion = self.get_create_root().create(
-				model=model.identifier,
-				messages=messagelist,
-				max_tokens=1000,
-				**extraargs
-			)
-		except self.providerlib.BadRequestError as e:
-			if 'content_policy_violation' in e.message:
-				raise errors.ContentPolicyError
-			else:
-				raise
 
+		# COMPLETION IN STEPS
 		total_cost = 0
-
-		msg = self.get_message_from_completion(completion)
-		cost = completion.usage
-		total_cost += model.cost_input * (cost.prompt_tokens if hasattr(cost, 'prompt_tokens') else cost.input_tokens)
-		total_cost += model.cost_output * (cost.completion_tokens if hasattr(cost, 'completion_tokens') else cost.output_tokens)
-
-		text_content = msg.content
-		text_content = self.message_to_text_content(msg)
-
-		if model.functions and msg.toolcalls:
-			toolcalls = msg.toolcalls
-			funccall = toolcalls[0]
-
-			# COMPLETION 2 - FULL SIGNATURE OF CALLED FUNCTION
-			called_func = chat.get_ai_accessible_funcs()[funccall.function.name]
-			completion = self.client.chat.completions.create(
-				model=model.identifier,
-				messages=messagelist,
-				tools=[{'type': 'function', 'function': called_func['schema']}],
-				tool_choice={'type': 'function', 'function': {'name': funccall.function.name}}
-			)
-			msg2 = completion.choices[0].message
-			cost = completion.usage
-			total_cost += model.cost_input * cost.prompt_tokens
-			total_cost += model.cost_output * cost.completion_tokens
-
-			funccall2 = msg2.tool_calls[0]
-			args = json.loads(funccall2.function.arguments)
-
-			if called_func['lazy']:
-
-				# COMPLETION 3 - EXPAND LAZY FUNCTION
-				actual_functions = called_func['func'](self=chat)
-				completion = self.client.chat.completions.create(
+		results = []
+		fullsig_sent = False
+		lazy_original_function = None
+		while True:
+			try:
+				completion = self.get_create_root().create(
 					model=model.identifier,
 					messages=messagelist,
-					tools=[{'type': 'function', 'function': f['schema']} for f in actual_functions.values()]
+					max_tokens=1000,
+					**extraargs
 				)
-				msg3 = completion.choices[0].message
-				cost = completion.usage
+			except self.providerlib.BadRequestError as e:
+				if 'content_policy_violation' in e.message:
+					raise errors.ContentPolicyError
+				else:
+					raise
 
-				total_cost += model.cost_input * cost.prompt_tokens
-				total_cost += model.cost_output * cost.completion_tokens
 
-				if msg3.tool_calls:
-					funccall3 = msg3.tool_calls[0]
-					args = json.loads(funccall3.function.arguments)
+			msg = self.get_message_from_completion(completion)
+			results.append(msg.model_dump())
+			save_debug_file('messagerequest', {'prompt': extraargs.get('system'), 'messages':messagelist, 'results':results})
 
-					save_debug_file('messagerequest',{'messages':messagelist_for_log,'result':msg.model_dump(),'result_followup':msg2.model_dump(),'result_unfold':msg3.model_dump()})
+			cost = completion.usage
+			total_cost += model.cost_input * (cost.prompt_tokens if hasattr(cost, 'prompt_tokens') else cost.input_tokens)
+			total_cost += model.cost_output * (cost.completion_tokens if hasattr(cost, 'completion_tokens') else cost.output_tokens)
 
+			text_content = self.message_to_text_content(msg)
+
+			if not (model.functions and msg.tool_calls):
+				function_call = None
+				break
+
+			else:
+				toolcalls = msg.tool_calls
+				funccall = toolcalls[0]
+
+				args = json.loads(funccall.function.arguments)
+				called_func = lazy_original_function or chat.get_ai_accessible_funcs()[funccall.function.name]
+
+				# lazy func, send unfolded funcs
+				if (not fullsig_sent) and called_func['lazy']:
+					lazy_original_function = called_func
+					actual_functions = called_func['func'](self=chat)
+					extraargs.update({
+						'tools': [{'type': 'function', 'function': f['schema']} for f in actual_functions.values()],
+						'tool_choice': 'auto'
+					})
+					fullsig_sent = True
+					continue
+
+				# not the full function yet
+				elif not fullsig_sent:
+					extraargs.update({
+						'tools': [{'type': 'function', 'function': called_func['schema']}],
+						'tool_choice': {'type': 'function', 'function': {'name': funccall.function.name}}
+					})
+					fullsig_sent = True
+					continue
+
+				# function done, can now interpret it
+				elif not called_func['nonterminating']:
+					if lazy_original_function:
+						function_call = {
+							'function': lazy_original_function['func'],
+							'arguments': {'args': args, 'resolve': funccall.function.name}
+						}
+					else:
+						function_call = {
+							'function': called_func['func'],
+							'arguments': args
+						}
+					break
+
+				# function that we actually need to call outselves and get back to the model
+				else:
+					tool_id = funccall.id
+
+					extramsgs = [msg.model_dump()] + [{'role':'tool','tool_call_id':tool_id,'content':"Success!"}] # TODO
+					messagelist += extramsgs
+					messagelist_for_log += extramsgs
+
+					del extramsgs[0]['function_call'] # weird design but ok
+
+					# no more tool calls now - this will also terminate the next loop
+					extraargs.update({
+						'tools': [{'type': 'function', 'function': called_func['schema']}],
+						'tool_choice': 'none'
+					})
 					function_call = {
 						'function': called_func['func'],
-						'arguments': {'args':args,'resolve':funccall3.function.name}
+						'arguments': args
 					}
-				else:
-					function_call = None
-
-			elif called_func['nonterminating']:
-
-				tool_id = funccall2.id
-
-				extramsgs = [msg2.model_dump()] + [{'role':'tool','tool_call_id':tool_id,'content':"Success!"}]
-				messagelist += extramsgs
-				messagelist_for_log += extramsgs
-
-				del extramsgs[0]['function_call'] # weird design but ok
-
-				# COMPLETION 3 - COMPLETE AFTER CALLING FUNC
-				completion = self.client.chat.completions.create(
-					model=model.identifier,
-					messages=messagelist,
-					tools=[{'type': 'function', 'function': called_func['schema']}],
-					tool_choice='none'
-				)
-				msg3 = completion.choices[0].message
-				cost = completion.usage
-
-				total_cost += model.cost_input * cost.prompt_tokens
-				total_cost += model.cost_output * cost.completion_tokens
-
-				function_call = {
-					'function': called_func['func'],
-					'arguments': args
-				}
-				text_content = msg3.content
-
-			else:
-				save_debug_file('messagerequest',{'messages':messagelist_for_log,'result':msg.model_dump(),'result_followup':msg2.model_dump()})
-				function_call = {
-					'function': called_func['func'],
-					'arguments': args
-				}
-
-		else:
-			function_call = None
-
-		save_debug_file('messagerequest', {'messages': messagelist_for_log, 'result': msg.model_dump()})
+					continue
 
 		return {
 			'text_content': text_content,
 			'function_call': function_call,
 			'cost': total_cost
 		}
+
+
 
 
 from . import anydream, open_ai, getimg, anthropicai
