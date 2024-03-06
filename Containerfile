@@ -11,14 +11,15 @@ RUN \
 		musl-dev
 RUN \
 	python3 -m ensurepip && \
-  pip3 install -U --no-cache-dir \
-	  pip \
-	  wheel
+	pip3 install -U --no-cache-dir \
+	    pip \
+	    wheel \
+	    lz4
 
 COPY . .
 
 RUN \
-  pip3 install /usr/src/app
+    pip3 install /usr/src/app
 
 
 EXPOSE 8080
