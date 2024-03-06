@@ -5,12 +5,10 @@ import os
 import random
 import time
 import typing
-from datetime import datetime, timezone, timedelta
 from typing import Iterable, List
 
 import emoji
 import enum
-import math
 
 from pprint import pprint
 
@@ -23,10 +21,9 @@ from sqlalchemy.ext.declarative import declarative_base
 
 from .__init__ import config
 from .metaprompt import create_character_info, create_character_image, guess_next_responder, summarize_chat
-from .helper import  now, describe_time
-from .helper import save_debug_file
+from .helper import  now, describe_time, save_debug_file
 from . import memes, prompts, errors
-from .ai_providers import AI, Format, Capability, AIProvider
+from .ai_providers import AI, Format, AIProvider
 
 MAX_MESSAGES_IN_CONTEXT = config['ai_prompting_config']['max_context']
 MAX_MESSAGE_LENGTH = 100
@@ -352,8 +349,11 @@ class Message(Base):
 		elif (self.message_type == MessageType.Image) and vision:
 			if self.content.startswith("data:"):
 				encodedimg = self.content
+			elif self.content.startswith("https://"):
+				encodedimg = self.content
 			else:
 				encodedimg = image_encode_b64('.' + self.content)
+
 			msg = [
 				{
 					'type': 'image_url',
@@ -574,104 +574,6 @@ class Chat(Base):
 
 		return msgs
 
-	def get_openai_messages(self, partner, upto=None, images=False):
-		if ALL_MESSAGES_IN_CONTEXT:
-			messages = partner.get_all_accessible_messages(stop_before=upto)[-MAX_MESSAGES_IN_CONTEXT:]
-		else:
-			messages = self.get_messages(stop_before=upto, visible_to=partner)[-MAX_MESSAGES_IN_CONTEXT:]
-
-		timenow = upto.timestamp if upto else now()
-
-		# CHARACTER
-		yield {
-			'role': "system",
-			'content': "\n\n".join([
-				partner.get_prompt(),
-				(partner.get_knowledge_bit_prompt(long_term=True, time=timenow) or ""),
-				prompts.USER_INFO_PROMPT.format(desc=config['user']['description']),
-				(partner.get_knowledge_bit_prompt(long_term=False, time=timenow) or "")
-			])
-		}
-
-		# STYLE
-		yield {
-			'role': "system",
-			'content': "\n\n".join([
-				prompts.CHAT_STYLE_PROMPT,
-				(prompts.GROUPCHAT_STYLE_PROMPT if len(self.ai_participants()) > 1 else "")
-			])
-		}
-
-		if len(messages) < 30 and partner.introduction_context:
-			yield {
-				'role': "system",
-				'content': "Context for the new chat: " + partner.introduction_context
-			}
-
-		yield from self.get_special_openai_messages(messages, partner)
-
-
-		# MESSAGES
-		# chat before joining is not visible
-		#index = next((i for i, msg in enumerate(messages) if msg.message_type == MessageType.MetaJoin and msg.author == partner), None)
-		#if index is not None:
-		#	messages = messages[index:]
-		#	yield {
-		#	    'role': "system",
-		#	    'content': "[Previous chat history not visible]"
-		#	}
-
-		lasttimestamp = math.inf
-		lastchat: Chat = self
-		# use self as first last chat so the context switch is announced after giving meta info about this chat
-		for msg in messages:
-			if (msg.timestamp - lasttimestamp) > (config['ai_prompting_config']['message_gap_info_min_hours']*3600):
-				yield {
-					'role': "system",
-					'content': "{hours} hours pass... It's now {now}".format(hours=(timenow - lasttimestamp)//3600, now=describe_time(msg.timestamp))
-				}
-
-			if ALL_MESSAGES_IN_CONTEXT and lastchat and lastchat != msg.chat:
-				yield {
-					'role': "system",
-					'content': f"--- CONTEXT SWITCH: {('Group Chat ' + msg.chat.name) if isinstance(msg.chat, GroupChat) else 'Private Chat'} ---"
-				}
-
-			lasttimestamp = msg.timestamp
-			lastchat = msg.chat
-
-			yield {
-				'role': "user" if (msg.get_author() != partner) else "assistant",
-				'content': msg.display_for_model(vision=images),
-				'name': msg.get_author().sanitized_handle()
-			}
-
-		if (timenow - lasttimestamp) > (config['ai_prompting_config']['message_gap_info_min_hours']*3600):
-			yield {
-				'role': "system",
-				'content': "{hours} hours pass... It's now {now}".format(hours=(timenow - lasttimestamp)//3600,now=describe_time(timenow))
-			}
-		elif (len(messages) > 0) and (messages[-1].author == partner):
-			yield {
-				'role': "system",
-				'content': "[Continue]"
-			}
-
-		if ALL_MESSAGES_IN_CONTEXT and lastchat and lastchat != self:
-			yield {
-				'role': "system",
-				'content': f"--- CONTEXT SWITCH: {('Group Chat ' + self.name) if isinstance(self, GroupChat) else 'Private Chat'}---"
-			}
-
-		# REMINDERS
-		yield {
-			'role': "system",
-			'content': "\n\n".join([
-				prompts.GROUPCHAT_STYLE_REMINDER.format(assistant=partner) if (len(self.ai_participants()) > 1) else "",
-				prompts.CHAT_STYLE_REMINDER
-			])
-		}
-
 	def send_message(self, content: str = None, msgtype: MessageType = None):
 		return self.add_message(Protagonist, content=content, msgtype=msgtype)
 
@@ -684,7 +586,6 @@ class Chat(Base):
 		vision_capable = handler.is_vision_capable()
 		use_vision = vision_capable and any(m.message_type == MessageType.Image for m in self.get_messages()[-MAX_MESSAGES_VISION:])
 
-		#messages = list(self.get_openai_messages(partner=responder, upto=replace, images=use_vision))
 		messages = list(handler.get_messages(self, partner=responder, upto=replace, images=use_vision))
 		if use_vision:
 			messages = messages[-MAX_MESSAGES_IN_CONTEXT_WITH_VISION:]
@@ -692,7 +593,7 @@ class Chat(Base):
 		try:
 			result = handler.respond_chat(chat=self, messagelist=messages, responder=responder, allow_functioncall=(not replace))
 		except errors.ContentPolicyError:
-			messages = list(self.get_openai_messages(partner=responder, upto=replace, images=False))
+			messages = list(handler.get_messages(self, partner=responder, upto=replace, images=False))
 			result = handler.respond_chat(chat=self, messagelist=messages, responder=responder, allow_functioncall=(not replace))
 
 		self.total_paid += result['cost']
@@ -743,12 +644,6 @@ class DirectChat(Chat):
 
 	def ai_participants(self):
 		return [self.partner]
-
-	def get_openai_messages(self, partner: Partner = None, upto=None, images=False):
-		return super().get_openai_messages(partner=self.partner, upto=upto, images=images)
-
-	def get_special_openai_messages(self, messages: List[Message], partner: Partner):
-		yield from []
 
 	def clean_content(self, content: str, responder: Partner):
 		return content
@@ -820,15 +715,6 @@ class GroupChat(Chat):
 			'partners': [{'ref': 'contacts', 'key': p.handle} for p in self.members],
 			'latest_message': self.get_messages()[-1].serialize() if self.messages else None,
 			'pinned': self.pinned or False
-		}
-
-	def get_special_openai_messages(self, messages: List[Message], partner: Partner):
-		# GROUP INFO
-		yield {
-			'role': "system",
-			'content': "\n\n".join([
-				self.get_group_desc_prompt(partner)
-			])
 		}
 
 	def pick_next_responder(self):

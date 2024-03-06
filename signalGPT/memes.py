@@ -24,7 +24,6 @@ templates = {
 	},
 	'buyaboat':{
 		"captions":[
-			None,
 			"cat"
 		],
 		"id":"boat",

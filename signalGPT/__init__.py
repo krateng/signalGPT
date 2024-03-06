@@ -12,10 +12,10 @@ except FileNotFoundError:
 		config = {
 			'ai_prompting_config': {
 				'chat_summary_update_min_hours': 96,
-			    'chat_summary_update_min_messages': 30,
-			    'message_gap_info_min_hours': 1
+				'chat_summary_update_min_messages': 30,
+				'message_gap_info_min_hours': 1
 			},
-			'use_service':{
+			'use_service': {
 				'ChatResponse': 'openai',
 				'ImageGeneration': 'getimg',
 				'DefaultMeta': 'openai',
@@ -33,12 +33,12 @@ except FileNotFoundError:
 				'anydream': {
 					'import': False
 				},
-				'openai':{
+				'openai': {
 					'apikey': None,
 					'model': 'gpt-4',
 					'model_meta': 'gpt-4-1106-preview'
 				},
-				'getimg':{
+				'getimg': {
 					'apikey': None
 				}
 			},
