@@ -2,28 +2,21 @@ import copy
 import json
 from collections import namedtuple
 
-from . import AIProvider, Capability, singleton
+from . import AIProvider, Capability, singleton, OpenAILike
 import openai
 
 from .. import errors
 from ..helper import save_debug_file
 
 
-GPTModel = namedtuple('GPTModel',['identifier','cost_input','cost_output','vision_capable','functions','context_window'])
+GPTModel = namedtuple('GPTModel', ['identifier', 'cost_input', 'cost_output', 'vision_capable', 'functions', 'context_window'])
+# cost is per 1M token
 
-MODELS = [
-	GPTModel('gpt-3.5-turbo-16k', 3, 4, False, True, 16385),
-	GPTModel('gpt-4', 30, 60, False, True, 8192),
-	GPTModel('gpt-4-32k', 60, 120, False, True, 32768),
-	GPTModel('gpt-4-1106-preview', 10, 30, False, True, 128000),
-	GPTModel('gpt-4-vision-preview', 10, 30, True, False, 128000),
-	GPTModel('gpt-4-0125-preview', 10, 30, False, True, 128000)
-]
 
 
 
 @singleton
-class OpenAI(AIProvider):
+class OpenAI(OpenAILike):
 	capabilities = [
 		Capability.ImageGeneration,
 		Capability.ChatResponse,
@@ -31,22 +24,18 @@ class OpenAI(AIProvider):
 		Capability.CharacterCreation
 	]
 	identifier = 'openai'
+	providerlib = openai
+	system_messages = True
+	user_names = True
 
-	client = None
-
-
-	def init_client(self):
-		if not self.client:
-			self.client = openai.OpenAI(
-				api_key=self.config['apikey']
-			)
-
-	def is_vision_capable(self):
-		if 'model_vision' in self.config:
-			model = [m for m in MODELS if m.identifier == self.config['model_vision']][0]
-		else:
-			model = [m for m in MODELS if m.identifier == self.config['model']][0]
-		return model.vision_capable
+	MODELS = [
+		GPTModel('gpt-3.5-turbo-16k', 3, 4, False, True, 16385),
+		GPTModel('gpt-4', 30, 60, False, True, 8192),
+		GPTModel('gpt-4-32k', 60, 120, False, True, 32768),
+		GPTModel('gpt-4-1106-preview', 10, 30, False, True, 128000),
+		GPTModel('gpt-4-vision-preview', 10, 30, True, False, 128000),
+		GPTModel('gpt-4-0125-preview', 10, 30, False, True, 128000)
+	]
 
 	def create_image(self, keyword_prompt, keyword_prompt_negative, fulltext_prompt, imageformat):
 
@@ -61,151 +50,6 @@ class OpenAI(AIProvider):
 		img = result['data'][0]['url']
 
 		return img
-
-	def respond_chat(self, chat, messagelist, allow_functioncall=True):
-
-		self.init_client()
-
-		if any(isinstance(m['content'], list) for m in messagelist):
-			model = [m for m in MODELS if m.identifier == self.config['model_vision']][0]
-			print('use vision model!')
-			extraargs = {'max_tokens':500}
-			messagelist_for_log = []
-			for m in messagelist:
-				logm = copy.deepcopy(m)
-				try:
-					logm['content'][0]['image_url']['url'] = logm['content'][0]['image_url']['url'][:30] + "...(shortened)"
-				except:
-					pass
-				messagelist_for_log.append(logm)
-
-		else:
-			model = [m for m in MODELS if m.identifier == self.config['model']][0]
-			messagelist_for_log = [m for m in messagelist]
-			extraargs = {}
-
-		funcargs = {
-			'tools': [{'type': 'function', 'function': f['lazyschema']} for f in chat.get_ai_accessible_funcs().values()],
-			'tool_choice': ('auto' if allow_functioncall else 'none')
-		} if model.functions else {}
-
-		# INITIAL COMPLETION
-		try:
-			completion = self.client.chat.completions.create(
-				model=model.identifier,
-				messages=messagelist,
-				**funcargs,
-				**extraargs
-			)
-		except openai.BadRequestError as e:
-			if 'content_policy_violation' in e.message:
-				raise errors.ContentPolicyError
-			else:
-				raise
-
-		total_cost = 0
-
-		msg = completion.choices[0].message
-		cost = completion.usage
-		total_cost += model.cost_input * cost.prompt_tokens
-		total_cost += model.cost_output * cost.completion_tokens
-
-		text_content = msg.content
-		toolcalls = msg.tool_calls
-
-		if toolcalls:
-			funccall = toolcalls[0]
-
-			# COMPLETION 2 - FULL SIGNATURE OF CALLED FUNCTION
-			called_func = chat.get_ai_accessible_funcs()[funccall.function.name]
-			completion = self.client.chat.completions.create(
-				model=model.identifier,
-				messages=messagelist,
-				tools=[{'type': 'function', 'function': called_func['schema']}],
-				tool_choice={'type': 'function', 'function': {'name': funccall.function.name}}
-			)
-			msg2 = completion.choices[0].message
-			cost = completion.usage
-			total_cost += model.cost_input * cost.prompt_tokens
-			total_cost += model.cost_output * cost.completion_tokens
-
-			funccall2 = msg2.tool_calls[0]
-			args = json.loads(funccall2.function.arguments)
-
-			if called_func['lazy']:
-
-				# COMPLETION 3 - EXPAND LAZY FUNCTION
-				actual_functions = called_func['func'](self=chat)
-				completion = self.client.chat.completions.create(
-					model=model.identifier,
-					messages=messagelist,
-					tools=[{'type': 'function', 'function': f['schema']} for f in actual_functions.values()]
-				)
-				msg3 = completion.choices[0].message
-				cost = completion.usage
-
-				total_cost += model.cost_input * cost.prompt_tokens
-				total_cost += model.cost_output * cost.completion_tokens
-
-				if msg3.tool_calls:
-					funccall3 = msg3.tool_calls[0]
-					args = json.loads(funccall3.function.arguments)
-
-					save_debug_file('messagerequest',{'messages':messagelist_for_log,'result':msg.model_dump(),'result_followup':msg2.model_dump(),'result_unfold':msg3.model_dump()})
-
-					function_call = {
-						'function': called_func['func'],
-						'arguments': {'args':args,'resolve':funccall3.function.name}
-					}
-				else:
-					function_call = None
-
-			elif called_func['nonterminating']:
-
-				tool_id = funccall2.id
-
-				extramsgs = [msg2.model_dump()] + [{'role':'tool','tool_call_id':tool_id,'content':"Success!"}]
-				messagelist += extramsgs
-				messagelist_for_log += extramsgs
-
-				del extramsgs[0]['function_call'] # weird design but ok
-
-				# COMPLETION 3 - COMPLETE AFTER CALLING FUNC
-				completion = self.client.chat.completions.create(
-					model=model.identifier,
-					messages=messagelist,
-					tools=[{'type': 'function', 'function': called_func['schema']}],
-					tool_choice='none'
-				)
-				msg3 = completion.choices[0].message
-				cost = completion.usage
-
-				total_cost += model.cost_input * cost.prompt_tokens
-				total_cost += model.cost_output * cost.completion_tokens
-
-				function_call = {
-					'function': called_func['func'],
-					'arguments': args
-				}
-				text_content = msg3.content
-
-			else:
-				save_debug_file('messagerequest',{'messages':messagelist_for_log,'result':msg.model_dump(),'result_followup':msg2.model_dump()})
-				function_call = {
-					'function': called_func['func'],
-					'arguments': args
-				}
-
-		else:
-			function_call = None
-
-		save_debug_file('messagerequest', {'messages': messagelist_for_log, 'result': msg.model_dump()})
-
-		return {
-			'text_content': text_content,
-			'function_call': function_call,
-			'cost': total_cost
-		}
 
 	def guess_next_responder(self,msgs,validpeople):
 

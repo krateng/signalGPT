@@ -8,18 +8,22 @@ import browser_cookie3
 
 from .__init__ import config
 from .helper import save_debug_file
-from .ai_providers import AI, Format
 
 
 
+# TODO redo this whole import mess wtf
 
 
 def create_character_info(notes):
+
+	from .ai_providers import AI, Format
 
 	return AI['CharacterCreation'].create_character_info(notes)
 
 
 def create_character_image(keywords,male):
+
+	from .ai_providers import AI, Format
 
 	# this is kinda necessary for anydream
 	# i wonder why ;)
@@ -37,6 +41,8 @@ def create_character_image(keywords,male):
 
 
 def guess_next_responder(msgs,people,user):
+
+	from .ai_providers import AI, Format
 
 	ALLOW_LAST_RESPONDER = True
 

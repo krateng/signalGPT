@@ -23,9 +23,10 @@ from sqlalchemy.ext.declarative import declarative_base
 
 from .__init__ import config
 from .metaprompt import create_character_info, create_character_image, guess_next_responder, summarize_chat
+from .helper import  now, describe_time
 from .helper import save_debug_file
 from . import memes, prompts, errors
-from .ai_providers import AI, Format, Capability
+from .ai_providers import AI, Format, Capability, AIProvider
 
 MAX_MESSAGES_IN_CONTEXT = config['ai_prompting_config']['max_context']
 MAX_MESSAGE_LENGTH = 100
@@ -37,14 +38,7 @@ ALL_MESSAGES_IN_CONTEXT = True
 
 
 
-def now():
-	return int(datetime.now(timezone.utc).timestamp())
 
-def describe_time(timestamp):
-	time = datetime.fromtimestamp(timestamp,tz=timezone.utc)
-	offset = timedelta(hours=config['user']['utc_offset'])
-	local_time = time + offset
-	return local_time.strftime('%A %B %d, %H:%M')
 
 def generate_uid():
 	uid = ""
@@ -344,7 +338,12 @@ class Message(Base):
 			'display_simplified': self.content and (len(self.content)<6) and ("" == emoji.replace_emoji(self.content, replace=''))
 		}
 
-	def display_for_model(self, vision=False, add_author: Partner | Protagonist = None):
+	def display_for_model(self, vision=False, add_author: Partner | Protagonist | bool = None):
+
+		if add_author is True:
+			add_author = self.author
+		elif add_author is False:
+			add_author = None
 
 		prefix = f"{add_author.name}: " if add_author else ""
 
@@ -680,18 +679,21 @@ class Chat(Base):
 		if not responder:
 			responder = replace.author if replace else self.pick_next_responder()
 
-		vision_capable = AI['ChatResponse'].is_vision_capable()
+		handler: AIProvider = AI['ChatResponse']
+
+		vision_capable = handler.is_vision_capable()
 		use_vision = vision_capable and any(m.message_type == MessageType.Image for m in self.get_messages()[-MAX_MESSAGES_VISION:])
 
-		messages = list(self.get_openai_messages(partner=responder, upto=replace, images=use_vision))
+		#messages = list(self.get_openai_messages(partner=responder, upto=replace, images=use_vision))
+		messages = list(handler.get_messages(self, partner=responder, upto=replace, images=use_vision))
 		if use_vision:
 			messages = messages[-MAX_MESSAGES_IN_CONTEXT_WITH_VISION:]
 
 		try:
-			result = AI['ChatResponse'].respond_chat(chat=self, messagelist=messages, allow_functioncall=(not replace))
+			result = handler.respond_chat(chat=self, messagelist=messages, responder=responder, allow_functioncall=(not replace))
 		except errors.ContentPolicyError:
 			messages = list(self.get_openai_messages(partner=responder, upto=replace, images=False))
-			result = AI['ChatResponse'].respond_chat(chat=self, messagelist=messages, allow_functioncall=(not replace))
+			result = handler.respond_chat(chat=self, messagelist=messages, responder=responder, allow_functioncall=(not replace))
 
 		self.total_paid += result['cost']
 
