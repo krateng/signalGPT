@@ -268,7 +268,7 @@ class OpenAILike(ChatCompleteProvider, abc.ABC):
 		else:
 			model = [m for m in self.MODELS if m.identifier == self.config['model']][0]
 			messagelist_for_log = [m for m in messagelist]
-			extraargs = {}
+			extraargs = {'max_tokens': 1000}
 
 		if model.functions:
 			extraargs.update({
@@ -296,7 +296,6 @@ class OpenAILike(ChatCompleteProvider, abc.ABC):
 				completion = self.get_create_root().create(
 					model=model.identifier,
 					messages=messagelist,
-					max_tokens=1000,
 					**extraargs
 				)
 			except self.providerlib.BadRequestError as e:
