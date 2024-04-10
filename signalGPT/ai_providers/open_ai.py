@@ -11,7 +11,7 @@ from ..helper import save_debug_file
 
 
 GPTModel = namedtuple('GPTModel', ['identifier', 'cost_input', 'cost_output', 'vision_capable', 'functions', 'context_window'])
-# cost is per 1M token
+# cost is dollar per 1M token
 
 
 
@@ -24,12 +24,14 @@ class OpenAI(OpenAILike, ResponderPickProvider, CharacterCreateProvider, ImageGe
 	user_names = True
 
 	MODELS = [
-		GPTModel('gpt-3.5-turbo-16k', 3, 4, False, True, 16385),
+		GPTModel('gpt-3.5-turbo-0125', 0.5, 1.2, False, False, 16385),
 		GPTModel('gpt-4', 30, 60, False, True, 8192),
 		GPTModel('gpt-4-32k', 60, 120, False, True, 32768),
 		GPTModel('gpt-4-1106-preview', 10, 30, False, True, 128000),
 		GPTModel('gpt-4-vision-preview', 10, 30, True, False, 128000),
-		GPTModel('gpt-4-0125-preview', 10, 30, False, True, 128000)
+		GPTModel('gpt-4-0125-preview', 10, 30, False, True, 128000),
+		GPTModel('gpt-4-turbo-2024-04-09', 10, 30, True, True, 128000)
+
 	]
 
 	def create_image(self, keyword_prompt, keyword_prompt_negative, fulltext_prompt, imageformat):
