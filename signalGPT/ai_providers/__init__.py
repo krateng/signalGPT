@@ -259,7 +259,10 @@ class OpenAILike(ChatCompleteProvider, abc.ABC):
 			messagelist_for_log = []
 			for m in messagelist:
 				logm = copy.deepcopy(m)
-				logm['content'][0]['image_url']['url'] = logm['content'][0]['image_url']['url'][:30] + "...(shortened)"
+				try:
+					logm['content'][0]['image_url']['url'] = logm['content'][0]['image_url']['url'][:30] + "...(shortened)"
+				except TypeError:
+					pass
 				messagelist_for_log.append(logm)
 
 		else:
