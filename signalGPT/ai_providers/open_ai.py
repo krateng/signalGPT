@@ -31,7 +31,8 @@ class OpenAI(OpenAILike, ResponderPickProvider, CharacterCreateProvider, ImageGe
 		GPTModel('gpt-4-vision-preview', 10, 30, True, False, 128000),
 		GPTModel('gpt-4-0125-preview', 10, 30, False, True, 128000),
 		GPTModel('gpt-4-turbo-2024-04-09', 10, 30, True, True, 128000),
-		GPTModel('gpt-4o', 5, 15, True, True, 128000)
+		GPTModel('gpt-4o', 5, 15, True, True, 128000),
+		GPTModel('gpt-4o-mini', 0.15, 0.6, True, True, 128000)
 	]
 
 	def create_image(self, keyword_prompt, keyword_prompt_negative, fulltext_prompt, imageformat):
